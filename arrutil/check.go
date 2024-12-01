@@ -51,15 +51,18 @@ func Contains(arr, val interface{}) bool {
 		return false
 	}
 
-	// if is string value
+	// if is string value 断言
 	if strVal, ok := val.(string); ok {
 		if ss, ok := arr.([]string); ok {
 			return StringsHas(ss, strVal)
 		}
-
+		// 获取到rv
 		rv := reflect.ValueOf(arr)
+		// rv是 slice array
 		if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
+			// 则有长度
 			for i := 0; i < rv.Len(); i++ {
+				//断言
 				if v, ok := rv.Index(i).Interface().(string); ok && strings.EqualFold(v, strVal) {
 					return true
 				}

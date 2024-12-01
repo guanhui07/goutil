@@ -102,6 +102,7 @@ func ToStrings(arr interface{}) (ret []string, err error) {
 	}
 
 	for i := 0; i < rv.Len(); i++ {
+		//强制转string
 		str, err := strutil.ToString(rv.Index(i).Interface())
 		if err != nil {
 			return []string{}, err
