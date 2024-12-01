@@ -1,82 +1,60 @@
 package strutil
 
 import (
-	"crypto/rand"
-	"encoding/base64"
-	mathRand "math/rand"
-	"time"
+	"github.com/gookit/goutil/byteutil"
+	"github.com/gookit/goutil/encodes"
 )
 
-// some consts string chars
+// some constants string chars
 const (
-	Numbers   = "0123456789"
+	Numbers  = "0123456789"
+	HexChars = "0123456789abcdef" // base16
+
 	AlphaBet  = "abcdefghijklmnopqrstuvwxyz"
 	AlphaBet1 = "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz"
-	AlphaNum  = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+	// AlphaNum chars, can use for base36 encode
+	AlphaNum = "abcdefghijklmnopqrstuvwxyz0123456789"
+	// AlphaNum2 chars, can use for base62 encode
 	AlphaNum2 = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	AlphaNum3 = "0123456789AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz"
 )
 
 // RandomChars generate give length random chars at `a-z`
 func RandomChars(ln int) string {
-	cs := make([]byte, ln)
-	for i := 0; i < ln; i++ {
-		// 1607400451937462000
-		mathRand.Seed(time.Now().UnixNano())
-		idx := mathRand.Intn(25) // 0 - 25
-		cs[i] = AlphaBet[idx]
-	}
-
-	return string(cs)
+	return buildRandomString(AlphaBet, ln)
 }
 
 // RandomCharsV2 generate give length random chars in `0-9a-z`
 func RandomCharsV2(ln int) string {
-	cs := make([]byte, ln)
-	for i := 0; i < ln; i++ {
-		// 1607400451937462000
-		mathRand.Seed(time.Now().UnixNano())
-		idx := mathRand.Intn(35) // 0 - 35
-		cs[i] = AlphaNum[idx]
-	}
-
-	return string(cs)
+	return buildRandomString(AlphaNum, ln)
 }
 
 // RandomCharsV3 generate give length random chars in `0-9a-zA-Z`
 func RandomCharsV3(ln int) string {
-	cs := make([]byte, ln)
-	for i := 0; i < ln; i++ {
-		// 1607400451937462000
-		mathRand.Seed(time.Now().UnixNano())
-		idx := mathRand.Intn(61) // 0 - 61
-		cs[i] = AlphaNum2[idx]
-	}
+	return buildRandomString(AlphaNum2, ln)
+}
 
-	return string(cs)
+// RandWithTpl generate random string with give template
+func RandWithTpl(n int, letters string) string {
+	if len(letters) == 0 {
+		letters = AlphaNum2
+	}
+	return buildRandomString(letters, n)
+}
+
+// RandomString generate.
+//
+// Example:
+//
+//	// this will give us a 44 byte, base64 encoded output
+//	token, err := RandomString(16) // eg: "I7S4yFZddRMxQoudLZZ-eg"
+func RandomString(length int) (string, error) {
+	b, err := RandomBytes(length)
+	return encodes.B64URL.EncodeToString(b), err
 }
 
 // RandomBytes generate
 func RandomBytes(length int) ([]byte, error) {
-	b := make([]byte, length)
-	_, err := rand.Read(b)
-	// Note that err == nil only if we read len(b) bytes.
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// RandomString generate.
-// Example:
-// 	// this will give us a 44 byte, base64 encoded output
-// 	token, err := RandomString(32)
-// 	if err != nil {
-//     // Serve an appropriately vague error to the
-//     // user, but log the details internally.
-// 	}
-func RandomString(length int) (string, error) {
-	b, err := RandomBytes(length)
-	return base64.URLEncoding.EncodeToString(b), err
+	return byteutil.Random(length)
 }

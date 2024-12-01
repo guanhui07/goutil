@@ -7,31 +7,42 @@ package timex
 import (
 	"time"
 
-	"github.com/gookit/goutil/fmtutil"
+	"github.com/gookit/goutil/mathutil"
 	"github.com/gookit/goutil/strutil"
 )
 
-// provide some commonly time consts
+// provide some commonly time constants
 const (
-	OneSecond  = 1
-	OneMinSec  = 60
-	OneHourSec = 3600
-	OneDaySec  = 86400
-	OneWeekSec = 7 * 86400
+	OneSecond   = 1
+	OneMinSec   = 60
+	OneHourSec  = 3600
+	OneDaySec   = 86400
+	OneWeekSec  = 7 * 86400
+	OneMonthSec = 30 * 86400
+
+	MinSec   = OneMinSec
+	HourSec  = OneHourSec
+	DaySec   = OneDaySec
+	WeekSec  = OneWeekSec
+	MonthSec = OneMonthSec
+
+	Microsecond = time.Microsecond
+	Millisecond = time.Millisecond
 
 	Second  = time.Second
 	OneMin  = time.Minute
+	Minute  = time.Minute
 	OneHour = time.Hour
+	Hour    = time.Hour
 	OneDay  = 24 * time.Hour
+	Day     = OneDay
 	OneWeek = 7 * 24 * time.Hour
-)
-
-var (
-	// DefaultLayout template for format time
-	DefaultLayout = "2006-01-02 15:04:05"
+	Week    = OneWeek
+	Month   = 30 * 24 * time.Hour
 )
 
 // TimeX alias of Time
+// Deprecated: use Time instead
 type TimeX = Time
 
 // Time an enhanced time.Time implementation.
@@ -83,14 +94,12 @@ func FromDate(s string, template ...string) (*Time, error) {
 	return FromString(s)
 }
 
-// FromString create from datetime string.
-// see strutil.ToTime()
+// FromString create from datetime string. see strutil.ToTime()
 func FromString(s string, layouts ...string) (*Time, error) {
 	t, err := strutil.ToTime(s, layouts...)
 	if err != nil {
 		return nil, err
 	}
-
 	return New(t), nil
 }
 
@@ -129,12 +138,25 @@ func (t *Time) Datetime() string {
 }
 
 // TplFormat use input template format time to date.
+//
+// alias of DateFormat()
 func (t *Time) TplFormat(template string) string {
 	return t.DateFormat(template)
 }
 
 // DateFormat use input template format time to date.
-// see ToLayout()
+//
+// Example:
+//
+//	tn := timex.Now()
+//	tn.DateFormat("Y-m-d H:i:s") // Output: 2019-01-01 12:12:12
+//	tn.DateFormat("Y-m-d H:i") // Output: 2019-01-01 12:12
+//	tn.DateFormat("Y-m-d") // Output: 2019-01-01
+//	tn.DateFormat("Y-m") // Output: 2019-01
+//	tn.DateFormat("y-m-d") // Output: 19-01-01
+//	tn.DateFormat("ymd") // Output: 190101
+//
+// see ToLayout() for convert template to layout.
 func (t *Time) DateFormat(template string) string {
 	return t.Format(ToLayout(template))
 }
@@ -154,6 +176,11 @@ func (t *Time) AddDay(day int) *Time {
 	return t.AddSeconds(day * OneDaySec)
 }
 
+// SubDay add some day time for the time
+func (t *Time) SubDay(day int) *Time {
+	return t.AddSeconds(-day * OneDaySec)
+}
+
 // Tomorrow time. get tomorrow time for the time
 func (t *Time) Tomorrow() *Time {
 	return t.AddSeconds(OneDaySec)
@@ -165,14 +192,47 @@ func (t *Time) DayAfter(day int) *Time {
 	return t.AddDay(day)
 }
 
+// AddDur some duration time
+func (t *Time) AddDur(dur time.Duration) *Time {
+	return &Time{
+		Time:   t.Add(dur),
+		Layout: DefaultLayout,
+	}
+}
+
+// AddString add duration time string.
+//
+// Example:
+//
+//	tn := timex.Now() // example as "2019-01-01 12:12:12"
+//	nt := tn.AddString("1h")
+//	nt.Datetime() // Output: 2019-01-01 13:12:12
+func (t *Time) AddString(dur string) *Time {
+	d, err := ToDuration(dur)
+	if err != nil {
+		panic(err)
+	}
+	return t.AddDur(d)
+}
+
 // AddHour add some hour time
 func (t *Time) AddHour(hours int) *Time {
 	return t.AddSeconds(hours * OneHourSec)
 }
 
+// SubHour minus some hour time
+func (t *Time) SubHour(hours int) *Time {
+	return t.SubSeconds(hours * OneHourSec)
+}
+
 // AddMinutes add some minutes time for the time
 func (t *Time) AddMinutes(minutes int) *Time {
 	return t.AddSeconds(minutes * OneMinSec)
+}
+
+// SubMinutes minus some minutes time for the time
+func (t *Time) SubMinutes(minutes int) *Time {
+	return t.AddSeconds(-minutes * OneMinSec)
 }
 
 // AddSeconds add some seconds time the time
@@ -184,8 +244,16 @@ func (t *Time) AddSeconds(seconds int) *Time {
 	}
 }
 
-// Diff calc diff duration for t - u.
-// alias of time.Time.Sub()
+// SubSeconds minus some seconds time the time
+func (t *Time) SubSeconds(seconds int) *Time {
+	return &Time{
+		Time: t.Add(time.Duration(-seconds) * time.Second),
+		// with layout
+		Layout: DefaultLayout,
+	}
+}
+
+// Diff calc diff duration for t - u. alias of time.Time.Sub()
 func (t Time) Diff(u time.Time) time.Duration {
 	return t.Sub(u)
 }
@@ -193,6 +261,11 @@ func (t Time) Diff(u time.Time) time.Duration {
 // DiffSec calc diff seconds for t - u
 func (t Time) DiffSec(u time.Time) int {
 	return int(t.Sub(u) / time.Second)
+}
+
+// DiffUnix calc diff seconds for t.Unix() - u
+func (t Time) DiffUnix(u int64) int {
+	return int(t.Unix() - u)
 }
 
 // SubUnix calc diff seconds for t - u
@@ -260,14 +333,14 @@ func (t *Time) IsAfterUnix(ux int64) bool {
 	return t.After(time.Unix(ux, 0))
 }
 
-// Timestamp value. alias t.Unix()
+// Timestamp value. alias of t.Unix()
 func (t Time) Timestamp() int64 {
 	return t.Unix()
 }
 
 // HowLongAgo format diff time to string.
 func (t Time) HowLongAgo(before time.Time) string {
-	return fmtutil.HowLongAgo(t.Unix() - before.Unix())
+	return mathutil.HowLongAgo(t.Unix() - before.Unix())
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.

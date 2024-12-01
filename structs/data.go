@@ -10,86 +10,54 @@ import (
 )
 
 // LiteData simple map[string]any struct. no lock
-type LiteData struct {
-	data map[string]any
-}
+type LiteData = Data
 
-// Data get all
-func (d *LiteData) Data() map[string]any {
-	return d.data
-}
-
-// SetData set all data
-func (d *LiteData) SetData(data map[string]any) {
-	d.data = data
-}
-
-// Value get from data
-func (d *LiteData) Value(key string) interface{} {
-	return d.data[key]
-}
-
-// GetVal get from data
-func (d *LiteData) GetVal(key string) interface{} {
-	return d.data[key]
-}
-
-// StrValue get from data
-func (d *LiteData) StrValue(key string) string {
-	return strutil.QuietString(d.data[key])
-}
-
-// IntVal get from data
-func (d *LiteData) IntVal(key string) int {
-	return mathutil.QuietInt(d.data[key])
-}
-
-// SetValue to data
-func (d *LiteData) SetValue(key string, val any) {
-	if d.data == nil {
-		d.data = make(map[string]any)
+// NewLiteData create, not locked
+func NewLiteData(data map[string]any) *Data {
+	if data == nil {
+		data = make(map[string]any)
 	}
-	d.data[key] = val
-}
-
-// ResetData all data
-func (d *LiteData) ResetData() {
-	d.data = nil
+	return &LiteData{data: data}
 }
 
 /*************************************************************
  * data struct and allow enable lock
  *************************************************************/
 
-// Data struct, allow enable lock TODO
+// Data struct, allow enable lock
 type Data struct {
 	sync.RWMutex
-	enableLock bool
-	// data store
+	lock bool
 	data map[string]any
 }
 
-// NewData create
+// NewData create new data instance
 func NewData() *Data {
 	return &Data{
+		lock: true,
 		data: make(map[string]any),
 	}
 }
 
-// EnableLock for operate data
-func (d *Data) EnableLock() *Data {
-	d.enableLock = true
+// WithLock for operate data
+func (d *Data) WithLock() *Data {
+	d.lock = true
 	return d
 }
 
+// EnableLock for operate data
+func (d *Data) EnableLock() *Data {
+	return d.WithLock()
+}
+
 // Data get all
-func (d *Data) Data() map[string]interface{} {
+func (d *Data) Data() map[string]any {
 	return d.data
 }
 
 // SetData set all data
 func (d *Data) SetData(data map[string]any) {
-	if !d.enableLock {
+	if !d.lock {
 		d.data = data
 		return
 	}
@@ -106,17 +74,22 @@ func (d *Data) DataLen() int {
 
 // ResetData all data
 func (d *Data) ResetData() {
-	d.data = make(map[string]interface{})
+	d.data = make(map[string]any)
+}
+
+// Merge load new data
+func (d *Data) Merge(mp map[string]any) {
+	d.data = maputil.SimpleMerge(mp, d.data)
 }
 
 // Set value to data
-func (d *Data) Set(key string, val interface{}) {
+func (d *Data) Set(key string, val any) {
 	d.SetValue(key, val)
 }
 
 // SetValue to data
-func (d *Data) SetValue(key string, val interface{}) {
-	if d.enableLock {
+func (d *Data) SetValue(key string, val any) {
+	if d.lock {
 		d.Lock()
 		defer d.Unlock()
 	}
@@ -125,29 +98,30 @@ func (d *Data) SetValue(key string, val interface{}) {
 }
 
 // Value get from data
-func (d *Data) Value(key string) (val interface{}, ok bool) {
-	if d.enableLock {
+func (d *Data) Value(key string) (val any, ok bool) {
+	if d.lock {
 		d.RLock()
 		defer d.RUnlock()
 	}
 
-	val, ok = d.data[key]
+	val, ok = maputil.GetByPath(key, d.data)
 	return
 }
 
 // Get val from data
-func (d *Data) Get(key string) interface{} {
+func (d *Data) Get(key string) any {
 	return d.GetVal(key)
 }
 
 // GetVal get from data
-func (d *Data) GetVal(key string) interface{} {
-	if d.enableLock {
+func (d *Data) GetVal(key string) any {
+	if d.lock {
 		d.RLock()
 		defer d.RUnlock()
 	}
 
-	return d.data[key]
+	val, _ := maputil.GetByPath(key, d.data)
+	return val
 }
 
 // StrVal get from data
@@ -172,4 +146,29 @@ func (d *Data) BoolVal(key string) bool {
 // String format data
 func (d *Data) String() string {
 	return maputil.ToString(d.data)
+}
+
+// OrderedData data TODO
+type OrderedData struct {
+	maputil.Data
+	cap  int
+	keys []string
+	// vals []any
+}
+
+// NewOrderedData instance.
+func NewOrderedData(cap int) *OrderedData {
+	return &OrderedData{cap: cap, Data: make(maputil.Data, cap)}
+}
+
+// Load data
+func (om *OrderedData) Load(data map[string]any) {
+	om.Data.Load(data)
+	om.keys = om.Data.Keys()
+}
+
+// Set key and value to map
+func (om *OrderedData) Set(key string, val any) {
+	om.keys = append(om.keys, key)
+	om.Data.Set(key, val)
 }

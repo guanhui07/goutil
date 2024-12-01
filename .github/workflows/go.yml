@@ -19,28 +19,28 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        go_version: [1.16, 1.17, 1.18, 1.19]
+        go_version: [1.19, '1.20', 1.21, 1.22, 1.23]
 
     steps:
     - name: Check out code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup Go Faster
-      uses: WillAbides/setup-go-faster@v1.7.0
+      uses: WillAbides/setup-go-faster@v1.14.0
       timeout-minutes: 3
       with:
         go-version: ${{ matrix.go_version }}
 
-    - name: Revive check
-      uses: morphy2k/revive-action@v2.4.1
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      with:
-        # Exclude patterns, separated by semicolons (optional)
-        exclude: "./internal/..."
+#    - name: Revive check
+#      uses: morphy2k/revive-action@v2.5.10
+#      if: ${{ matrix.os == 'ubuntu-latest' && matrix.go_version == '1.22' }}
+#      with:
+#        # Exclude patterns, separated by semicolons (optional)
+#        exclude: "./internal/..."
 
     - name: Run staticcheck
       uses: reviewdog/action-staticcheck@v1
-      if: ${{ matrix.os == 'ubuntu-latest' && matrix.go_version == '1.18'  }}
+      if: ${{ matrix.os == 'ubuntu-latest' && matrix.go_version == '1.22' }}
       with:
         github_token: ${{ secrets.github_token }}
         # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
@@ -53,7 +53,7 @@ jobs:
     - name: Run unit tests
       # run: go test -v -cover ./...
       # must add " for profile.cov on Windows OS
-      run: go test -v -coverprofile="profile.cov" ./...
+      run: go test -coverprofile="profile.cov" ./...
 
     - name: Send coverage
       uses: shogo82148/actions-goveralls@v1

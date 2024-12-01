@@ -10,18 +10,18 @@ import (
 // Value data store
 type Value struct {
 	// V value
-	V interface{}
+	V any
 }
 
 // NewValue instance.
-func NewValue(val interface{}) *Value {
+func NewValue(val any) *Value {
 	return &Value{
 		V: val,
 	}
 }
 
 // Set value
-func (v *Value) Set(val interface{}) {
+func (v *Value) Set(val any) {
 	v.V = val
 }
 
@@ -31,9 +31,14 @@ func (v *Value) Reset() {
 }
 
 // Val get
-func (v *Value) Val() interface{} {
+func (v *Value) Val() any {
 	return v.V
 }
+
+// Val get
+// func (v *Value) ValOr[T any](defVal T) T {
+// 	return v.V
+// }
 
 // Int value get
 func (v *Value) Int() int {
@@ -102,7 +107,7 @@ func (v *Value) Strings() (ss []string) {
 	return
 }
 
-// SplitToStrings split string value to strings
+// SplitToStrings split string value to strings. sep default is comma(,)
 func (v *Value) SplitToStrings(sep ...string) (ss []string) {
 	if v.V == nil {
 		return
@@ -114,7 +119,7 @@ func (v *Value) SplitToStrings(sep ...string) (ss []string) {
 	return
 }
 
-// SplitToInts split string value to []int
+// SplitToInts split string value to []int. sep default is comma(,)
 func (v *Value) SplitToInts(sep ...string) (ss []int) {
 	if v.V == nil {
 		return

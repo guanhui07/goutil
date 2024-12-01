@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -21,32 +20,42 @@ import (
 )
 
 var (
+	// hidden pacakges.
 	hidden = []string{
+		"basefn",
 		"netutil",
 		"comdef",
-		"common",
-		"numbers",
 		"internal",
 	}
 	nameMap = map[string]string{
-		"arr":     "array/Slice",
+		"arr":     "array and Slice",
 		"str":     "strings",
-		"sys":     "system",
+		"byte":    "Bytes Utils",
+		"sys":     "system Utils",
 		"math":    "math/Number",
 		"fs":      "file System",
-		"fmt":     "formatting",
-		"test":    "testing",
+		"fmt":     "format Utils",
+		"test":    "testing Utils",
 		"dump":    "dumper",
 		"structs": "structs",
 		"json":    "JSON Utils",
 		"cli":     "CLI/Console",
 		"env":     "ENV/Environment",
-		"std":     "standard",
+		"goinfo":  "Go Info",
 	}
 
-	allowLang = map[string]int{
-		"en":    1,
-		"zh-CN": 1,
+	// allowLang = map[string]int{
+	// 	"en":    1,
+	// 	"zh-CN": 1,
+	// }
+	exFileNames = []string{
+		"color_print.go",
+	}
+	exSuffixes = []string{
+		"_test.go",
+		"_windows.go",
+		"_darwin.go",
+		// "_linux",
 	}
 )
 
@@ -58,12 +67,12 @@ type genOptsSt struct {
 	tplDir   string
 }
 
+//lint:ignore U1000 for test
 func (o genOptsSt) filePattern() string {
 	baseDir := genOpts.baseDir
 	if baseDir == "/" || baseDir == "./" {
 		return baseDir + "*/*.go"
 	}
-
 	return strings.TrimRight(baseDir, "/") + "/*/*.go"
 }
 
@@ -77,9 +86,9 @@ func (o genOptsSt) tplFilename() string {
 
 func (o genOptsSt) tplFilepath(givePath string) string {
 	if givePath != "" {
-		return path.Join(o.tplDir, givePath)
+		return filepath.Join(o.tplDir, givePath)
 	}
-	return path.Join(o.tplDir, o.tplFilename())
+	return filepath.Join(o.tplDir, o.tplFilename())
 }
 
 var (
@@ -112,6 +121,7 @@ func main() {
 		"./internal/template",
 		"template file dir, use for generate, will inject metadata to the template.\nsee ./internal/template/*.tpl;;t",
 	)
+	cmd.StringVar(&genOpts.template, "template", "", "the template file")
 
 	cmd.Func = handle
 	cmd.Example = `
@@ -134,7 +144,7 @@ func handle(c *cflag.CFlags) error {
 		out = os.Stdout
 	} else {
 		toFile = true
-		out, err = os.OpenFile(genOpts.output, os.O_CREATE|os.O_WRONLY, fsutil.DefaultFilePerm)
+		out, err = os.OpenFile(genOpts.output, fsutil.FsCWTFlags, fsutil.DefaultFilePerm)
 		goutil.PanicIfErr(err)
 
 		// close after handle
@@ -178,18 +188,17 @@ func collectPgkFunc(ms []string, basePkg string) *bytes.Buffer {
 	var pkgFuncs = make(map[string][]string)
 
 	// match func
-	reg := regexp.MustCompile(`func [A-Z]\w+\(.*\).*`)
+	reg := regexp.MustCompile(`func [A-Z]\w+.*`)
 	buf := new(bytes.Buffer)
 
 	color.Info.Println("- find and collect exported functions...")
 	for _, filename := range ms { // for each go file
 		// "jsonutil/jsonutil_test.go"
-		if strings.HasSuffix(filename, "_test.go") {
+		// "sysutil/sysutil_windows.go"
+		if strutil.HasOneSuffix(filename, exSuffixes) {
 			continue
 		}
-
-		// "sysutil/sysutil_windows.go"
-		if strings.HasSuffix(filename, "_windows.go") {
+		if strutil.ContainsOne(filename, exFileNames) {
 			continue
 		}
 
@@ -241,7 +250,12 @@ func collectPgkFunc(ms []string, basePkg string) *bytes.Buffer {
 		if len(lines) > 0 {
 			bufWriteln(buf, "// source at", filename)
 			for _, line := range lines {
-				bufWriteln(buf, strings.TrimRight(line, "{ "))
+				idx := strings.IndexByte(line, '{')
+				if idx > 0 {
+					bufWriteln(buf, strings.TrimSpace(line[:idx]))
+				} else {
+					bufWriteln(buf, strings.TrimSpace(line))
+				}
 			}
 		}
 	}
@@ -255,11 +269,11 @@ func collectPgkFunc(ms []string, basePkg string) *bytes.Buffer {
 	return buf
 }
 
-func bufWritef(buf *bytes.Buffer, f string, a ...interface{}) {
+func bufWritef(buf *bytes.Buffer, f string, a ...any) {
 	_, _ = fmt.Fprintf(buf, f, a...)
 }
 
-func bufWriteln(buf *bytes.Buffer, a ...interface{}) {
+func bufWriteln(buf *bytes.Buffer, a ...any) {
 	_, _ = fmt.Fprintln(buf, a...)
 }
 

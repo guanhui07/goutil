@@ -2,14 +2,22 @@
 package cliutil
 
 import (
-	"os"
-	"path"
 	"strings"
 
 	"github.com/gookit/goutil/cliutil/cmdline"
 	"github.com/gookit/goutil/internal/comfunc"
+	"github.com/gookit/goutil/strutil"
 	"github.com/gookit/goutil/sysutil"
 )
+
+// SplitMulti split multi string by sep string.
+func SplitMulti(ss []string, sep string) []string {
+	ns := make([]string, 0, len(ss)+1)
+	for _, s := range ss {
+		ns = append(ns, strings.Split(s, sep)...)
+	}
+	return ns
+}
 
 // LineBuild build command line string by given args.
 func LineBuild(binFile string, args []string) string {
@@ -83,27 +91,6 @@ func HasShellEnv(shell string) bool {
 	return comfunc.HasShellEnv(shell)
 }
 
-// Workdir get
-func Workdir() string {
-	dir, _ := os.Getwd()
-	return dir
-}
-
-// BinDir get
-func BinDir() string {
-	return path.Dir(os.Args[0])
-}
-
-// BinFile get
-func BinFile() string {
-	return os.Args[0]
-}
-
-// BinName get
-func BinName() string {
-	return path.Base(os.Args[0])
-}
-
 // BuildOptionHelpName for render flag help
 func BuildOptionHelpName(names []string) string {
 	var sb strings.Builder
@@ -134,7 +121,7 @@ func ShellQuote(s string) string {
 
 	if quote > 0 {
 		ln := len(s) + 2
-		bs := make([]byte, ln, ln)
+		bs := make([]byte, ln)
 
 		bs[0] = quote
 		bs[ln-1] = quote
@@ -157,9 +144,6 @@ func OutputLines(output string) []string {
 }
 
 // FirstLine from command output
-func FirstLine(output string) string {
-	if i := strings.Index(output, "\n"); i >= 0 {
-		return output[0:i]
-	}
-	return output
-}
+//
+// Deprecated: please use strutil.FirstLine
+var FirstLine = strutil.FirstLine

@@ -15,16 +15,20 @@ type ArrFormatter struct {
 	Prefix string
 	// Indent string for format each element
 	Indent string
-	// ClosePrefix string for last "]"
+	// ClosePrefix on before end char: ]
 	ClosePrefix string
 }
 
 // NewFormatter instance
-func NewFormatter(arr interface{}) *ArrFormatter {
+func NewFormatter(arr any) *ArrFormatter {
 	f := &ArrFormatter{}
 	f.Src = arr
-
 	return f
+}
+
+// FormatIndent array data to string.
+func FormatIndent(arr any, indent string) string {
+	return NewFormatter(arr).WithIndent(indent).Format()
 }
 
 // WithFn for config self
@@ -47,7 +51,6 @@ func (f *ArrFormatter) FormatTo(w io.Writer) {
 
 // Format to string
 func (f *ArrFormatter) String() string {
-	f.Format()
 	return f.Format()
 }
 
@@ -117,9 +120,4 @@ func (f *ArrFormatter) doFormat() {
 		writer.WriteString(f.ClosePrefix)
 	}
 	writer.WriteByte(']')
-}
-
-// FormatIndent array data to string.
-func FormatIndent(arr interface{}, indent string) string {
-	return NewFormatter(arr).WithIndent(indent).Format()
 }

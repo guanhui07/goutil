@@ -29,6 +29,18 @@ func (m SMap) HasValue(val string) bool {
 	return false
 }
 
+// Load data to the map
+func (m SMap) Load(data map[string]string) {
+	for k, v := range data {
+		m[k] = v
+	}
+}
+
+// Set value to the data map
+func (m SMap) Set(key string, val any) {
+	m[key] = strutil.MustString(val)
+}
+
 // Value get from the data map
 func (m SMap) Value(key string) (string, bool) {
 	val, ok := m[key]
@@ -93,6 +105,20 @@ func (m SMap) Strings(key string) (ss []string) {
 	return
 }
 
+// IfExist key, then call the fn with value.
+func (m SMap) IfExist(key string, fn func(val string)) {
+	if val, ok := m[key]; ok {
+		fn(val)
+	}
+}
+
+// IfValid value is not empty, then call the fn
+func (m SMap) IfValid(key string, fn func(val string)) {
+	if val, ok := m[key]; ok && val != "" {
+		fn(val)
+	}
+}
+
 // Keys of the string-map
 func (m SMap) Keys() []string {
 	keys := make([]string, 0, len(m))
@@ -109,6 +135,15 @@ func (m SMap) Values() []string {
 		ss = append(ss, v)
 	}
 	return ss
+}
+
+// ToKVPairs slice convert. eg: {k1:v1,k2:v2} => {k1,v1,k2,v2}
+func (m SMap) ToKVPairs() []string {
+	pairs := make([]string, 0, len(m)*2)
+	for k, v := range m {
+		pairs = append(pairs, k, v)
+	}
+	return pairs
 }
 
 // String data to string

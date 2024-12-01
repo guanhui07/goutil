@@ -1,9 +1,7 @@
 package strutil
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -11,14 +9,15 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/gookit/goutil/comdef"
 	"github.com/gookit/goutil/internal/comfunc"
 	"github.com/gookit/goutil/mathutil"
 )
 
 var (
-	ErrDateLayout   = errors.New("invalid date layout string")
-	ErrInvalidParam = errors.New("invalid input parameter")
+	// ErrDateLayout error
+	ErrDateLayout = errors.New("invalid date layout string")
+	// ErrInvalidParam error
+	ErrInvalidParam = errors.New("invalid input for parse time")
 
 	// some regex for convert string.
 	toSnakeReg  = regexp.MustCompile("[A-Z][a-z]")
@@ -39,6 +38,8 @@ var (
 func Quote(s string) string { return strconv.Quote(s) }
 
 // Unquote remove start and end quotes by single-quote or double-quote
+//
+// tip: strconv.Unquote cannot unquote single-quote
 func Unquote(s string) string {
 	ln := len(s)
 	if ln < 2 {
@@ -70,6 +71,16 @@ func Join(sep string, ss ...string) string { return strings.Join(ss, sep) }
 // JoinList alias of strings.Join
 func JoinList(sep string, ss []string) string { return strings.Join(ss, sep) }
 
+// JoinAny type to string
+func JoinAny(sep string, parts ...any) string {
+	ss := make([]string, 0, len(parts))
+	for _, part := range parts {
+		ss = append(ss, QuietString(part))
+	}
+
+	return strings.Join(ss, sep)
+}
+
 // Implode alias of strings.Join
 func Implode(sep string, ss ...string) string { return strings.Join(ss, sep) }
 
@@ -77,87 +88,247 @@ func Implode(sep string, ss ...string) string { return strings.Join(ss, sep) }
  * convert value to string
  *************************************************************/
 
-// String convert val to string
-func String(val interface{}) (string, error) {
-	return AnyToString(val, true)
-}
+// String convert value to string, return error on failed
+func String(val any) (string, error) { return ToStringWith(val) }
 
-// QuietString convert value to string, will ignore error
-func QuietString(in interface{}) string {
-	val, _ := AnyToString(in, false)
-	return val
-}
-
-// MustString convert value to string, TODO will panic on error
-func MustString(in interface{}) string {
-	val, _ := AnyToString(in, false)
-	return val
-}
+// ToString convert value to string, return error on failed
+func ToString(val any) (string, error) { return ToStringWith(val) }
 
 // StringOrErr convert value to string, return error on failed
-func StringOrErr(val interface{}) (string, error) {
-	return AnyToString(val, true)
+func StringOrErr(val any) (string, error) { return ToStringWith(val) }
+
+// QuietString convert value to string, will ignore error. same as SafeString()
+func QuietString(val any) string { return SafeString(val) }
+
+// SafeString convert value to string, will ignore error
+func SafeString(in any) string {
+	s, _ := AnyToString(in, false)
+	return s
 }
 
-// ToString convert value to string
-func ToString(val interface{}) (string, error) {
-	return AnyToString(val, true)
+// StringOrPanic convert value to string, will panic on error
+func StringOrPanic(val any) string { return MustString(val) }
+
+// MustString convert value to string, will panic on error
+func MustString(val any) string {
+	s, err := ToStringWith(val)
+	if err != nil {
+		panic(err)
+	}
+	return s
 }
 
-// AnyToString convert value to string.
-//
-// if defaultAsErr:
-//
-//	False will use fmt.Sprint convert complex type
-//	True  will return error on fail.
-func AnyToString(val interface{}, defaultAsErr bool) (str string, err error) {
-	if val == nil {
-		return
-	}
+// StringOrDefault convert any value to string, return default value on failed
+func StringOrDefault(val any, defVal string) string { return StringOr(val, defVal) }
 
-	switch value := val.(type) {
-	case int:
-		str = strconv.Itoa(value)
-	case int8:
-		str = strconv.Itoa(int(value))
-	case int16:
-		str = strconv.Itoa(int(value))
-	case int32: // same as `rune`
-		str = strconv.Itoa(int(value))
-	case int64:
-		str = strconv.FormatInt(value, 10)
-	case uint:
-		str = strconv.FormatUint(uint64(value), 10)
-	case uint8:
-		str = strconv.FormatUint(uint64(value), 10)
-	case uint16:
-		str = strconv.FormatUint(uint64(value), 10)
-	case uint32:
-		str = strconv.FormatUint(uint64(value), 10)
-	case uint64:
-		str = strconv.FormatUint(value, 10)
-	case float32:
-		str = strconv.FormatFloat(float64(value), 'f', -1, 32)
-	case float64:
-		str = strconv.FormatFloat(value, 'f', -1, 64)
-	case bool:
-		str = strconv.FormatBool(value)
-	case string:
-		str = value
-	case []byte:
-		str = string(value)
-	case time.Duration:
-		str = value.String()
-	case json.Number:
-		str = value.String()
-	default:
-		if defaultAsErr {
-			err = comdef.ErrConvType
-		} else {
-			str = fmt.Sprint(value)
-		}
+// StringOr convert any value to string, return default value on failed
+func StringOr(val any, defVal string) string {
+	s, err := ToStringWith(val)
+	if err != nil {
+		return defVal
 	}
-	return
+	return s
+}
+
+// AnyToString convert any value to string.
+//
+// For defaultAsErr:
+//
+//   - False  will use fmt.Sprint convert unsupported type
+//   - True   will return error on convert fail.
+func AnyToString(val any, defaultAsErr bool) (s string, err error) {
+	var optFn comfunc.ConvOptionFn
+	if !defaultAsErr {
+		optFn = comfunc.WithUserConvFn(comfunc.StrBySprintFn)
+	}
+	return ToStringWith(val, optFn)
+}
+
+// ToStringWith try to convert value to string. can with some option func, more see comfunc.ConvOption.
+func ToStringWith(in any, optFns ...comfunc.ConvOptionFn) (string, error) {
+	return comfunc.ToStringWith(in, optFns...)
+}
+
+/*************************************************************
+ * convert string value to bool
+ *************************************************************/
+
+// ToBool convert string to bool
+func ToBool(s string) (bool, error) {
+	return comfunc.StrToBool(strings.TrimSpace(s))
+}
+
+// QuietBool convert to bool, will ignore error
+func QuietBool(s string) bool { return SafeBool(s) }
+
+// SafeBool convert to bool, will ignore error
+func SafeBool(s string) bool {
+	val, _ := comfunc.StrToBool(strings.TrimSpace(s))
+	return val
+}
+
+// MustBool convert to bool, will panic on error
+func MustBool(s string) bool {
+	val, err := ToBool(s)
+	if err != nil {
+		panic(err)
+	}
+	return val
+}
+
+// Bool parse string to bool. like strconv.ParseBool()
+func Bool(s string) (bool, error) {
+	return comfunc.StrToBool(strings.TrimSpace(s))
+}
+
+/*************************************************************
+ * convert string value to int
+ *************************************************************/
+
+// Int convert string to int, alias of ToInt()
+func Int(s string) (int, error) {
+	return strconv.Atoi(strings.TrimSpace(s))
+}
+
+// ToInt convert string to int, return error on fail
+func ToInt(s string) (int, error) {
+	return strconv.Atoi(strings.TrimSpace(s))
+}
+
+// IntOrDefault convert string to int, return default value on fail
+func IntOrDefault(s string, defVal int) int {
+	return IntOr(s, defVal)
+}
+
+// IntOr convert string to int, return default value on fail
+func IntOr(s string, defVal int) int {
+	val, err := ToInt(s)
+	if err != nil {
+		return defVal
+	}
+	return val
+}
+
+// SafeInt convert string to int, will ignore error
+func SafeInt(s string) int {
+	val, _ := ToInt(s)
+	return val
+}
+
+// QuietInt convert string to int, will ignore error
+func QuietInt(s string) int { return SafeInt(s) }
+
+// MustInt convert string to int, will panic on error
+func MustInt(s string) int { return IntOrPanic(s) }
+
+// IntOrPanic convert value to int, will panic on error
+func IntOrPanic(s string) int {
+	val, err := ToInt(s)
+	if err != nil {
+		panic(err)
+	}
+	return val
+}
+
+/*************************************************************
+ * convert string value to int64
+ *************************************************************/
+
+// Int64 convert string to int, will ignore error
+func Int64(s string) int64 { return SafeInt64(s) }
+
+// QuietInt64 convert string to int, will ignore error
+func QuietInt64(s string) int64 { return SafeInt64(s) }
+
+// SafeInt64 convert string to int, will ignore error
+func SafeInt64(s string) int64 {
+	val, _ := Int64OrErr(s)
+	return val
+}
+
+// ToInt64 convert string to int, return error on fail
+func ToInt64(s string) (int64, error) {
+	return strconv.ParseInt(s, 10, 0)
+}
+
+// Int64OrDefault convert string to int, return default value on fail
+func Int64OrDefault(s string, defVal int64) int64 {
+	return Int64Or(s, defVal)
+}
+
+// Int64Or convert string to int, return default value on fail
+func Int64Or(s string, defVal int64) int64 {
+	val, err := ToInt64(s)
+	if err != nil {
+		return defVal
+	}
+	return val
+}
+
+// Int64OrErr convert string to int, return error on fail
+func Int64OrErr(s string) (int64, error) {
+	return strconv.ParseInt(s, 10, 0)
+}
+
+// MustInt64 convert value to int, will panic on error
+func MustInt64(s string) int64 { return Int64OrPanic(s) }
+
+// Int64OrPanic convert value to int, will panic on error
+func Int64OrPanic(s string) int64 {
+	val, err := strconv.ParseInt(s, 10, 0)
+	if err != nil {
+		panic(err)
+	}
+	return val
+}
+
+/*************************************************************
+ * convert string value to uint
+ *************************************************************/
+
+// Uint convert string to uint, will ignore error
+func Uint(s string) uint64 { return SafeUint(s) }
+
+// SafeUint convert string to uint, will ignore error
+func SafeUint(s string) uint64 {
+	val, _ := UintOrErr(s)
+	return val
+}
+
+// ToUint convert string to uint, return error on fail. alias of UintOrErr()
+func ToUint(s string) (uint64, error) {
+	return strconv.ParseUint(s, 10, 0)
+}
+
+// UintOrErr convert string to uint, return error on fail
+func UintOrErr(s string) (uint64, error) {
+	return strconv.ParseUint(s, 10, 0)
+}
+
+// MustUint convert value to uint, will panic on error. alias of UintOrPanic()
+func MustUint(s string) uint64 { return UintOrPanic(s) }
+
+// UintOrPanic convert value to uint, will panic on error
+func UintOrPanic(s string) uint64 {
+	val, err := UintOrErr(s)
+	if err != nil {
+		panic(err)
+	}
+	return val
+}
+
+// UintOrDefault convert string to uint, return default value on fail
+func UintOrDefault(s string, defVal uint64) uint64 {
+	return UintOr(s, defVal)
+}
+
+// UintOr convert string to uint, return default value on fail
+func UintOr(s string, defVal uint64) uint64 {
+	val, err := UintOrErr(s)
+	if err != nil {
+		return defVal
+	}
+	return val
 }
 
 /*************************************************************
@@ -187,103 +358,6 @@ func ToBytes(s string) (b []byte) {
 }
 
 /*************************************************************
- * convert string value to bool
- *************************************************************/
-
-// ToBool convert string to bool
-func ToBool(s string) (bool, error) {
-	return comfunc.StrToBool(s)
-}
-
-// QuietBool convert to bool, will ignore error
-func QuietBool(s string) bool {
-	val, _ := comfunc.StrToBool(strings.TrimSpace(s))
-	return val
-}
-
-// MustBool convert, will panic on error
-func MustBool(s string) bool {
-	val, _ := comfunc.StrToBool(strings.TrimSpace(s))
-	return val
-}
-
-// Bool parse string to bool. like strconv.ParseBool()
-func Bool(s string) (bool, error) {
-	return comfunc.StrToBool(s)
-}
-
-/*************************************************************
- * convert string value to int, float
- *************************************************************/
-
-// Int convert string to int, alias of ToInt()
-func Int(s string) (int, error) {
-	return strconv.Atoi(strings.TrimSpace(s))
-}
-
-// ToInt convert string to int, return error on fail
-func ToInt(s string) (int, error) {
-	return strconv.Atoi(strings.TrimSpace(s))
-}
-
-// QuietInt convert string to int, will ignore error
-func QuietInt(s string) int {
-	val, _ := ToInt(s)
-	return val
-}
-
-// MustInt convert string to int, will panic on error
-func MustInt(s string) int {
-	val, _ := ToInt(s)
-	return val
-}
-
-// IntOrPanic convert value to int, will panic on error
-func IntOrPanic(s string) int {
-	val, err := ToInt(s)
-	if err != nil {
-		panic(err)
-	}
-	return val
-}
-
-// Int64 convert string to int, will ignore error
-func Int64(s string) int64 {
-	val, _ := Int64OrErr(s)
-	return val
-}
-
-// QuietInt64 convert string to int, will ignore error
-func QuietInt64(s string) int64 {
-	val, _ := Int64OrErr(s)
-	return val
-}
-
-// ToInt64 convert string to int, return error on fail
-func ToInt64(s string) (int64, error) {
-	return strconv.ParseInt(s, 10, 0)
-}
-
-// Int64OrErr convert string to int, return error on fail
-func Int64OrErr(s string) (int64, error) {
-	return strconv.ParseInt(s, 10, 0)
-}
-
-// MustInt64 convert value to int, will panic on error
-func MustInt64(s string) int64 {
-	return Int64OrPanic(s)
-}
-
-// Int64OrPanic convert value to int, will panic on error
-func Int64OrPanic(s string) int64 {
-	val, err := strconv.ParseInt(s, 10, 0)
-	if err != nil {
-		panic(err)
-	}
-	return val
-}
-
-/*************************************************************
  * convert string value to int/string slice, time.Time
  *************************************************************/
 
@@ -298,7 +372,7 @@ func ToInts(s string, sep ...string) ([]int, error) { return ToIntSlice(s, sep..
 
 // ToIntSlice split string to slice and convert item to int.
 //
-// Default sep is comma(,)
+// Default sep is comma
 func ToIntSlice(s string, sep ...string) (ints []int, err error) {
 	ss := ToSlice(s, sep...)
 	for _, item := range ss {
@@ -334,87 +408,8 @@ func ToSlice(s string, sep ...string) []string {
 // 	return cliutil.StringToOSArgs(s) // error: import cycle not allowed
 // }
 
-// MustToTime convert date string to time.Time
-func MustToTime(s string, layouts ...string) time.Time {
-	t, err := ToTime(s, layouts...)
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
-// auto match use some commonly layouts.
-// key is layout length.
-var layoutMap = map[int][]string{
-	6:  {"200601", "060102", time.Kitchen},
-	8:  {"20060102"},
-	10: {"2006-01-02"},
-	13: {"2006-01-02 15"},
-	15: {time.Stamp},
-	16: {"2006-01-02 15:04"},
-	19: {"2006-01-02 15:04:05", time.RFC822, time.StampMilli},
-	20: {"2006-01-02 15:04:05Z"},
-	21: {time.RFC822Z},
-	22: {time.StampMicro},
-	24: {time.ANSIC},
-	25: {time.RFC3339, time.StampNano},
-	// 26: {time.Layout}, // must go >= 1.19
-	28: {time.UnixDate},
-	29: {time.RFC1123},
-	30: {time.RFC850},
-	31: {time.RFC1123Z},
-	35: {time.RFC3339Nano},
-}
-
-// ToTime convert date string to time.Time
-func ToTime(s string, layouts ...string) (t time.Time, err error) {
-	// custom layout
-	if len(layouts) > 0 {
-		if len(layouts[0]) > 0 {
-			return time.Parse(layouts[0], s)
-		}
-
-		err = ErrDateLayout
-		return
-	}
-
-	// auto match use some commonly layouts.
-	strLn := len(s)
-	maybeLayouts, ok := layoutMap[strLn]
-	if !ok {
-		err = ErrInvalidParam
-		return
-	}
-
-	var hasAlphaT bool
-	if pos := strings.IndexByte(s, 'T'); pos > 0 && pos < 12 {
-		hasAlphaT = true
-	}
-
-	hasSlashR := strings.IndexByte(s, '/') > 0
-	for _, layout := range maybeLayouts {
-		// date string has "T". eg: "2006-01-02T15:04:05"
-		if hasAlphaT {
-			layout = strings.Replace(layout, " ", "T", 1)
-		}
-
-		// date string has "/". eg: "2006/01/02 15:04:05"
-		if hasSlashR {
-			layout = strings.Replace(layout, "-", "/", -1)
-		}
-
-		t, err = time.Parse(layout, s)
-		if err == nil {
-			return
-		}
-	}
-
-	// t, err = time.ParseInLocation(layout, s, time.Local)
-	return
-}
-
 // ToDuration parses a duration string. such as "300ms", "-1.5h" or "2h45m".
 // Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
 func ToDuration(s string) (time.Duration, error) {
-	return time.ParseDuration(s)
+	return comfunc.ToDuration(s)
 }

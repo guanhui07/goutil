@@ -17,11 +17,15 @@ func TestRunner_Run(t *testing.T) {
 		ID:  "task1",
 		Cmd: cmdr.NewCmd("id").WithOutput(buf, buf),
 	})
-	rr.AddCmd(cmdr.NewCmd("ls").AddArgs([]string{"-l", "-h"}).WithOutput(buf, buf))
+	rr.AddCmd(cmdr.NewCmd("ls").
+		AddArgs([]string{"-l", "-h"}).
+		WithOutput(buf, buf).
+		OnBefore(cmdr.PrintCmdline))
 
 	task, err := rr.Task("task1")
 	assert.NoErr(t, err)
 	assert.NoErr(t, task.Err())
+	assert.True(t, task.IsSuccess())
 
 	ids := rr.TaskIDs()
 	// dump.P(rr.TaskIDs())

@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package clipboard
 
@@ -12,3 +11,5 @@ func GetWriterBin() string {
 func GetReaderBin() string {
 	return ReaderOnWin
 }
+
+func available() bool { return true }

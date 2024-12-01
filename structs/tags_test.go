@@ -15,7 +15,7 @@ func ExampleTagParser_Parse() {
 	type User struct {
 		Age   int    `json:"age" yaml:"age" default:"23"`
 		Name  string `json:"name,omitempty" yaml:"name" default:"inhere"`
-		inner string
+		inner string //lint:ignore U1000 for test
 	}
 
 	u := &User{}
@@ -99,7 +99,7 @@ func TestParseTags(t *testing.T) {
 	type user struct {
 		Age   int    `json:"age" default:"23"`
 		Name  string `json:"name" default:"inhere"`
-		inner string
+		inner string //lint:ignore U1000 unused
 	}
 
 	tags, err := structs.ParseTags(user{}, []string{"json", "default"})
@@ -123,7 +123,7 @@ func TestParseReflectTags(t *testing.T) {
 	type user struct {
 		Age   int    `json:"age" default:"23"`
 		Name  string `json:"name" default:"inhere"`
-		inner string
+		inner string //lint:ignore U1000 unused
 	}
 
 	rt := reflect.TypeOf(user{})
@@ -213,6 +213,24 @@ func TestParseTagValueNamed(t *testing.T) {
 	assert.NotEmpty(t, mp)
 	assert.Eq(t, "inhere", mp.Str("default"))
 
-	mp, err = structs.ParseTagValueNamed("name", "name=n;default=inhere", "name")
-	assert.ErrSubMsg(t, err, "parse tag error on field 'name'")
+	_, err = structs.ParseTagValueNamed("name", "no-value")
+	assert.ErrSubMsg(t, err, "parse tag error on field 'name': must")
+
+	_, err = structs.ParseTagValueNamed("name", "name=n;default=inhere", "name")
+	assert.ErrSubMsg(t, err, "parse tag error on field 'name': invalid")
+}
+
+func TestParseTagValueQuick(t *testing.T) {
+	fields := []string{"name", "default"}
+	mp := structs.ParseTagValueQuick("", fields)
+	assert.Empty(t, mp)
+
+	mp = structs.ParseTagValueQuick("inhere", fields)
+	assert.NotEmpty(t, mp)
+	assert.Eq(t, "inhere", mp.Str("name"))
+
+	mp = structs.ParseTagValueQuick(";tom", fields)
+	assert.NotEmpty(t, mp)
+	assert.Eq(t, "", mp.Str("name"))
+	assert.Eq(t, "tom", mp.Str("default"))
 }

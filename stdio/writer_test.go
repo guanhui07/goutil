@@ -6,6 +6,7 @@ import (
 
 	"github.com/gookit/goutil/stdio"
 	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/testutil/fakeobj"
 )
 
 func TestNewWriteWrapper(t *testing.T) {
@@ -19,7 +20,20 @@ func TestNewWriteWrapper(t *testing.T) {
 	err = w.WriteByte(',')
 	assert.NoErr(t, err)
 
-	_, err = w.Write([]byte("hi"))
+	_, err = w.Write([]byte("hi."))
 	assert.NoErr(t, err)
-	assert.Eq(t, "inhere,hi", w.String())
+	assert.Eq(t, "inhere,hi.", w.String())
+
+	_, err = w.Writef(" ok, %s.", "tom")
+	assert.NoErr(t, err)
+	assert.Eq(t, "inhere,hi. ok, tom.", w.String())
+
+	b := &fakeobj.IOWriter{}
+	w = stdio.WrapW(b)
+	n, err := w.WriteString("abc")
+	assert.Eq(t, 3, n)
+	assert.NoErr(t, err)
+
+	assert.Eq(t, "abc", string(b.Buf))
+	assert.Empty(t, w.String())
 }

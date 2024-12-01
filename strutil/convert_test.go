@@ -1,18 +1,22 @@
 package strutil_test
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gookit/goutil/strutil"
 	"github.com/gookit/goutil/testutil/assert"
-	"github.com/gookit/goutil/timex"
 )
 
 func TestStringJoin(t *testing.T) {
 	assert.Eq(t, "a:b", strutil.Join(":", "a", "b"))
 	assert.Eq(t, "a:b", strutil.Implode(":", "a", "b"))
 	assert.Eq(t, "a:b", strutil.JoinList(":", []string{"a", "b"}))
+
+	assert.Eq(t, "ab:23", strutil.JoinAny(":", "ab", 23))
 }
 
 func TestStringToBool(t *testing.T) {
@@ -33,6 +37,10 @@ func TestStringToBool(t *testing.T) {
 		is.Eq(want, strutil.QuietBool(str))
 		is.Eq(want, strutil.MustBool(str))
 	}
+
+	is.Panics(func() {
+		strutil.MustBool("invalid")
+	})
 
 	blVal, err := strutil.ToBool("1")
 	is.Nil(err)
@@ -65,22 +73,26 @@ func BenchmarkAnyToString_string(b *testing.B) {
 	}
 }
 
-func TestAnyToString(t *testing.T) {
+func TestToString(t *testing.T) {
 	is := assert.New(t)
 
-	tests := []interface{}{
+	tests := []any{
 		2,
 		int8(2), int16(2), int32(2), int64(2),
 		uint(2), uint8(2), uint16(2), uint32(2), uint64(2),
 		"2",
 		[]byte("2"),
+		time.Duration(2),
+		json.Number("2"),
 	}
 	for _, in := range tests {
-		is.Eq("2", strutil.MustString(in))
 		is.Eq("2", strutil.QuietString(in))
 	}
 
-	tests1 := []interface{}{
+	is.Eq("2", strutil.SafeString(2))
+	is.Eq("err msg", strutil.SafeString(errors.New("err msg")))
+
+	tests1 := []any{
 		float32(2.3), 2.3,
 	}
 	for _, in := range tests1 {
@@ -103,9 +115,8 @@ func TestAnyToString(t *testing.T) {
 	is.NoErr(err)
 	is.Eq("true", str)
 
-	str, err = strutil.String(nil)
+	_, err = strutil.String(nil)
 	is.NoErr(err)
-	is.Eq("", str)
 
 	_, err = strutil.String([]string{"a"})
 	is.Err(err)
@@ -113,6 +124,18 @@ func TestAnyToString(t *testing.T) {
 	str, err = strutil.AnyToString([]string{"a"}, false)
 	is.NoErr(err)
 	is.Eq("[a]", str)
+
+	str = strutil.QuietString(nil)
+	is.Eq("", str)
+
+	str = strutil.StringOrDefault([]string{"a"}, "default")
+	is.Eq("default", str)
+	str = strutil.StringOrDefault("value", "default")
+	is.Eq("value", str)
+
+	is.Panics(func() {
+		strutil.StringOrPanic([]string{"a"})
+	})
 }
 
 func TestByte2string(t *testing.T) {
@@ -138,14 +161,14 @@ func TestStrToInt(t *testing.T) {
 	is.Nil(err)
 	is.Eq(-23, iVal)
 
-	iVal = strutil.QuietInt("-23")
-	is.Eq(-23, iVal)
+	is.Eq(-23, strutil.QuietInt("-23"))
+	is.Eq(-23, strutil.SafeInt("-23"))
 
-	iVal = strutil.IntOrPanic("-23")
-	is.Eq(-23, iVal)
+	is.Eq(23, strutil.IntOrDefault("invalid", 23))
+	is.Eq(23, strutil.IntOrDefault("23", 25))
 
-	iVal = strutil.MustInt("-23")
-	is.Eq(-23, iVal)
+	is.Eq(-23, strutil.IntOrPanic("-23"))
+	is.Eq(-23, strutil.MustInt("-23"))
 
 	is.PanicsErrMsg(func() {
 		strutil.IntOrPanic("abc")
@@ -167,14 +190,40 @@ func TestStrToInt64(t *testing.T) {
 	is.Nil(err)
 	is.Eq(int64(23), iVal)
 
-	iVal = strutil.QuietInt64("-23")
-	is.Eq(int64(-23), iVal)
+	is.Eq(int64(23), strutil.Int64OrDefault("invalid", 23))
+	is.Eq(int64(23), strutil.Int64OrDefault("23", 25))
 
-	iVal = strutil.MustInt64("-23")
-	is.Eq(int64(-23), iVal)
+	is.Eq(int64(-23), strutil.QuietInt64("-23"))
+	is.Eq(int64(-23), strutil.MustInt64("-23"))
 
 	is.Panics(func() {
 		strutil.MustInt64("abc")
+	})
+}
+
+func TestStrToUint(t *testing.T) {
+	is := assert.New(t)
+
+	iVal, err := strutil.ToUint("23")
+	is.Nil(err)
+	is.Eq(uint64(23), iVal)
+
+	iVal, err = strutil.UintOrErr("23")
+	is.Nil(err)
+	is.Eq(uint64(23), iVal)
+
+	iVal = strutil.Uint("23")
+	is.Nil(err)
+	is.Eq(uint64(23), iVal)
+
+	is.Eq(uint64(23), strutil.UintOrDefault("invalid", 23))
+	is.Eq(uint64(23), strutil.UintOrDefault("23", 25))
+
+	is.Eq(uint64(23), strutil.SafeUint("23"))
+	is.Eq(uint64(23), strutil.MustUint("23"))
+
+	is.Panics(func() {
+		strutil.MustUint("abc")
 	})
 }
 
@@ -225,52 +274,6 @@ func TestStr2Array(t *testing.T) {
 	is.Len(ss, 0)
 }
 
-func TestToTime(t *testing.T) {
-	is := assert.New(t)
-	tests := map[string]string{
-		"20180927":             "2018-09-27 00:00:00 +0000 UTC",
-		"2018-09-27":           "2018-09-27 00:00:00 +0000 UTC",
-		"2018-09-27 12":        "2018-09-27 12:00:00 +0000 UTC",
-		"2018-09-27T12":        "2018-09-27 12:00:00 +0000 UTC",
-		"2018-09-27 12:34":     "2018-09-27 12:34:00 +0000 UTC",
-		"2018-09-27T12:34":     "2018-09-27 12:34:00 +0000 UTC",
-		"2018-09-27 12:34:45":  "2018-09-27 12:34:45 +0000 UTC",
-		"2018-09-27T12:34:45":  "2018-09-27 12:34:45 +0000 UTC",
-		"2018/09/27 12:34:45":  "2018-09-27 12:34:45 +0000 UTC",
-		"2018/09/27T12:34:45Z": "2018-09-27 12:34:45 +0000 UTC",
-		"2018-10-16 12:34:01":  "2018-10-16 12:34:01 +0000 UTC",
-	}
-
-	for sample, want := range tests {
-		tm, err := strutil.ToTime(sample)
-		is.Nil(err, "sample %s => want %s", sample, want)
-		is.Eq(want, tm.String())
-	}
-
-	tm, err := strutil.ToTime("invalid")
-	is.Err(err)
-	is.True(tm.IsZero())
-
-	tm, err = strutil.ToTime("invalid", "")
-	is.Err(err)
-	is.True(tm.IsZero())
-
-	tm, err = strutil.ToTime("2018-09-27T15:34", "2018-09-27 15:34:23")
-	is.Err(err)
-	is.True(tm.IsZero())
-
-	tm = strutil.MustToTime("2018-09-27T15:34")
-	is.Eq("2018-09-27T15:34", timex.FormatByTpl(tm, "Y-m-dTH:I"))
-
-	is.Panics(func() {
-		strutil.MustToTime("invalid")
-	})
-
-	dur, err1 := strutil.ToDuration("3s")
-	is.NoErr(err1)
-	is.Eq(3*timex.Second, dur)
-}
-
 //	func TestToOSArgs(t *testing.T) {
 //		args := strutil.ToOSArgs(`./app top sub -a ddd --xx "abc
 //
@@ -289,4 +292,46 @@ func TestQuote(t *testing.T) {
 	is.Eq("a", strutil.Unquote("a"))
 	is.Eq("a single-quoted string", strutil.Unquote("'a single-quoted string'"))
 	is.Eq("a double-quoted string", strutil.Unquote(`"a double-quoted string"`))
+}
+
+func TestToByteSize(t *testing.T) {
+	u64 := uint64(0)
+	assert.Eq(t, u64, strutil.SafeByteSize("0"))
+	assert.Eq(t, u64, strutil.SafeByteSize("0b"))
+	assert.Eq(t, u64, strutil.SafeByteSize("0B"))
+	assert.Eq(t, u64, strutil.SafeByteSize("0M"))
+
+	tests := []struct {
+		bytes uint64
+		sizeS string
+	}{
+		{1, "1"},
+		{5, "5"},
+		{346, "346"},
+		{346, "346B"},
+		{3471, "3.39K"},
+		{346777, "338.65 Kb"},
+		{12341739, "11.77 M"},
+		{1202590842, "1.12GB"},
+		{1231453023109, "1.12 TB"},
+		{1351079888211148, "1.2PB"},
+	}
+
+	for _, tt := range tests {
+		assert.Eq(t, tt.bytes, strutil.SafeByteSize(tt.sizeS))
+	}
+
+	assert.Eq(t, uint64(1), strutil.SafeByteSize("1"))
+	assert.Eq(t, uint64(1024*1024), strutil.SafeByteSize("1M"))
+	assert.Eq(t, uint64(1024*1024), strutil.SafeByteSize("1MB"))
+	assert.Eq(t, uint64(1024*1024), strutil.SafeByteSize("1m"))
+	assert.Eq(t, uint64(10485760), strutil.SafeByteSize("10mb"))
+
+	assert.Eq(t, uint64(1024*1024*1024), strutil.SafeByteSize("1G"))
+	assert.Eq(t, uint64(1288490188), strutil.SafeByteSize("1.2GB"))
+	assert.Eq(t, uint64(1288490188), strutil.SafeByteSize("1.2 GB"))
+
+	size, err := strutil.ToByteSize("invalid")
+	assert.Err(t, err)
+	assert.Eq(t, uint64(0), size)
 }

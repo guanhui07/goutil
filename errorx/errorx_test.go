@@ -34,6 +34,15 @@ func TestNew(t *testing.T) {
 	// fmt.Printf("%#v\n", err)
 }
 
+func TestRawGoErr(t *testing.T) {
+	assert.Err(t, errorx.E("error message"))
+	assert.Err(t, errorx.Err("error message"))
+	assert.Err(t, errorx.Raw("error message"))
+	assert.Err(t, errorx.Ef("error %s", "message"))
+	assert.Err(t, errorx.Errf("error %s", "message"))
+	assert.Err(t, errorx.Rawf("error %s", "message"))
+}
+
 func TestNewf(t *testing.T) {
 	err := errorx.Newf("error %s", "message")
 	assert.Err(t, err)
@@ -113,7 +122,7 @@ func TestWithPrev_errorx_l2(t *testing.T) {
 	err1 := returnXErrL2("first error message")
 	assert.Err(t, err1)
 
-	err2 := errorx.WithPrev(err1, "second error message")
+	err2 := errorx.WithPrevf(err1, "second error %s", "message")
 	assert.Err(t, err2)
 	assert.True(t, errorx.Has(err2, err1))
 	assert.True(t, errorx.Is(err2, err1))
@@ -128,8 +137,9 @@ func TestWithPrev_errorx_l2(t *testing.T) {
 
 func TestStacked_goerr(t *testing.T) {
 	assert.Nil(t, errorx.Stacked(nil))
+	assert.Nil(t, errorx.Traced(nil))
 
-	err1 := errorx.Raw("first error message")
+	err1 := errorx.E("first error message")
 	assert.Err(t, err1)
 
 	err2 := errorx.Stacked(err1)
@@ -156,6 +166,8 @@ func TestStacked_errorx(t *testing.T) {
 	err2 := errorx.WithStack(err1)
 	assert.Err(t, err2)
 	fmt.Printf("%+v\n", err2)
+
+	assert.Nil(t, errorx.WithStack(nil))
 }
 
 func TestTo_ErrorX(t *testing.T) {
@@ -226,12 +238,55 @@ func TestCause(t *testing.T) {
 
 func TestWrapf(t *testing.T) {
 	err := errorx.Rawf("first error %s", "message")
+	assert.Panics(t, func() {
+		_ = errorx.MustEX(err)
+	})
+
 	err = errorx.Wrapf(err, "second error %s", "message")
 	assert.Err(t, err)
+	assert.True(t, errorx.IsErrorX(err))
+
+	ex, ok := errorx.ToErrorX(err)
+	assert.True(t, ok)
+	assert.Eq(t, "second error message", ex.Message())
 
 	fmt.Println(err)
 	fmt.Println("err.Error():")
 	fmt.Println(err.Error())
+
+	err = errorx.Wrapf(nil, "first error %s", "message")
+	assert.Eq(t, "first error message", err.Error())
+}
+
+func TestWithOptions(t *testing.T) {
+	err := errorx.WithOptions("err msg", errorx.SkipDepth(3), errorx.TraceDepth(10))
+	// fmt.Println(err.Error())
+	assert.Eq(t, "err msg", err.Error())
+	assert.True(t, errorx.IsErrorX(err))
+
+	s := errorx.MustEX(err).StackString()
+	assert.StrContains(t, s, "TestWithOptions")
+}
+
+func TestErrorX_Format(t *testing.T) {
+	err := errorx.New("first error message")
+	err = errorx.Wrap(err, "second error message")
+	err = errorx.Wrap(err, "third error message")
+	assert.Err(t, err)
+	fmt.Println(err)
+
+	ex, ok := errorx.ToErrorX(err)
+	assert.True(t, ok)
+
+	s := ex.String()
+	// fmt.Println(s)
+	assert.StrContains(t, s, "third error message")
+	assert.StrContains(t, s, "Previous: second error message")
+	assert.StrContains(t, s, "Previous: first error message")
+
+	err = ex.Cause()
+	assert.Err(t, err)
+	assert.Eq(t, "first error message", err.Error())
 }
 
 type MyError struct {

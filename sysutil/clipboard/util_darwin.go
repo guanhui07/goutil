@@ -1,5 +1,4 @@
 //go:build darwin
-// +build darwin
 
 package clipboard
 
@@ -12,3 +11,5 @@ func GetWriterBin() string {
 func GetReaderBin() string {
 	return ReaderOnMac
 }
+
+func available() bool { return true }

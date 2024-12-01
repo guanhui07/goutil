@@ -28,6 +28,8 @@ func TestGetenv(t *testing.T) {
 		assert.Eq(t, 1, GetInt(TestEnvName), "int env value not equals")
 		assert.Eq(t, 0, GetInt(TestNoEnvName))
 		assert.Eq(t, 2, GetInt(TestNoEnvName, 2))
+
+		assert.Len(t, GetMulti(TestEnvName, TestNoEnvName), 1)
 	})
 }
 
@@ -42,6 +44,9 @@ func TestGetBool(t *testing.T) {
 }
 
 func TestEnviron(t *testing.T) {
+	assert.NotEmpty(t, EnvPaths())
+	assert.NotEmpty(t, EnvMap())
+
 	testutil.MockOsEnv(map[string]string{
 		TestEnvName: TestEnvValue,
 	}, func() {
@@ -51,5 +56,21 @@ func TestEnviron(t *testing.T) {
 		fmt.Println("os.Environ:", os.Environ())
 		fmt.Println("new Environ:", Environ())
 		assert.Contains(t, Environ(), TestEnvName)
+	})
+}
+
+func TestSearchEnvKeys(t *testing.T) {
+	testutil.MockOsEnv(map[string]string{
+		TestEnvName: TestEnvValue,
+		"APP_NAME":  "test",
+	}, func() {
+		keys := SearchEnvKeys(TestEnvName)
+		assert.Contains(t, keys, TestEnvName)
+
+		keys = SearchEnvKeys("APP")
+		assert.Contains(t, keys, "APP_NAME")
+
+		keys = SearchEnv("test", true)
+		assert.Contains(t, keys, "APP_NAME")
 	})
 }

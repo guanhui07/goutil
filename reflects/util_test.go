@@ -11,7 +11,7 @@ import (
 
 func TestLen(t *testing.T) {
 	is := assert.New(t)
-	tests := []interface{}{
+	tests := []any{
 		"abc",
 		123,
 		int8(123), int16(123), int32(123), int64(123),
@@ -33,10 +33,11 @@ func TestLen(t *testing.T) {
 
 func TestSliceSubKind(t *testing.T) {
 	noErrTests := []struct {
-		val  interface{}
+		val  any
 		want reflect.Kind
 	}{
 		{"invalid", reflect.Invalid},
+		{[2]int{1, 2}, reflect.Int},
 		{[]int{1, 2}, reflect.Int},
 		{[]int8{1, 2}, reflect.Int8},
 		{[]int16{1, 2}, reflect.Int16},
@@ -48,7 +49,7 @@ func TestSliceSubKind(t *testing.T) {
 		{[]uint32{1, 2}, reflect.Uint32},
 		{[]uint64{1, 2}, reflect.Uint64},
 		{[]string{"a", "b"}, reflect.String},
-		{[]interface{}{"a", "b"}, reflect.Interface},
+		{[]any{"a", "b"}, reflect.Interface},
 	}
 
 	for _, item := range noErrTests {
@@ -103,12 +104,11 @@ func TestSliceAddItem_ok(t *testing.T) {
 	assert.Len(t, sl, 2)
 
 	rv.Index(1).Set(reflect.ValueOf("def"))
-
 	dump.P(sl)
 }
 
 func TestSlice_subMap_addItem(t *testing.T) {
-	d := []interface{}{
+	d := []any{
 		map[string]string{
 			"k3051": "v3051",
 		},
@@ -123,7 +123,7 @@ func TestSlice_subMap_addItem(t *testing.T) {
 }
 
 func TestMap_subSlice_addItem(t *testing.T) {
-	mp := map[string]interface{}{
+	mp := map[string]any{
 		"sl": []string{"abc"},
 	}
 
@@ -178,6 +178,11 @@ func TestSetValue(t *testing.T) {
 		rv := reflect.ValueOf("val")
 		_ = reflects.SetValue(rv, "new val")
 	})
+
+	// test for SetRValue()
+	rv = reflect.ValueOf(&iVal)
+	reflects.SetRValue(rv, reflect.ValueOf(456))
+	assert.Eq(t, 456, iVal)
 }
 
 func TestSetValue_map(t *testing.T) {
@@ -193,16 +198,4 @@ func TestSetValue_map(t *testing.T) {
 	// type error
 	err = reflects.SetValue(rv, map[int]string{2: "abc"})
 	assert.Err(t, err)
-}
-
-func TestFlatMap(t *testing.T) {
-	assert.Panics(t, func() {
-		reflects.FlatMap(reflect.ValueOf("abc"), func(_ string, _ reflect.Value) {
-			// nothing
-		})
-	})
-
-	assert.NotPanics(t, func() {
-		reflects.FlatMap(reflect.ValueOf(nil), nil)
-	})
 }

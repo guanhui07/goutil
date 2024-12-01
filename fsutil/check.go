@@ -2,16 +2,20 @@ package fsutil
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path"
+	"path/filepath"
 )
 
+// perm for create dir or file
 var (
-	// DefaultDirPerm perm and flags for create log file
 	DefaultDirPerm   os.FileMode = 0775
 	DefaultFilePerm  os.FileMode = 0665
 	OnlyReadFilePerm os.FileMode = 0444
+)
 
+var (
 	// DefaultFileFlags for create and write
 	DefaultFileFlags = os.O_CREATE | os.O_WRONLY | os.O_APPEND
 	// OnlyReadFileFlags open file for read
@@ -41,7 +45,7 @@ func PathExists(path string) bool {
 
 // IsDir reports whether the named directory exists.
 func IsDir(path string) bool {
-	if path == "" {
+	if path == "" || len(path) > 468 {
 		return false
 	}
 
@@ -58,7 +62,7 @@ func FileExists(path string) bool {
 
 // IsFile reports whether the named file or directory exists.
 func IsFile(path string) bool {
-	if path == "" {
+	if path == "" || len(path) > 468 {
 		return false
 	}
 
@@ -70,7 +74,25 @@ func IsFile(path string) bool {
 
 // IsAbsPath is abs path.
 func IsAbsPath(aPath string) bool {
-	return path.IsAbs(aPath)
+	if len(aPath) > 0 {
+		if aPath[0] == '/' {
+			return true
+		}
+		return filepath.IsAbs(aPath)
+	}
+	return false
+}
+
+// IsEmptyDir reports whether the named directory is empty.
+func IsEmptyDir(dirPath string) bool {
+	f, err := os.Open(dirPath)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	_, err = f.Readdirnames(1)
+	return err == io.EOF
 }
 
 // ImageMimeTypes refer net/http package
@@ -117,4 +139,13 @@ func IsZipFile(filepath string) bool {
 	}
 
 	return bytes.Equal(buf, []byte("PK\x03\x04"))
+}
+
+// PathMatch check for a string. alias of path.Match()
+func PathMatch(pattern, s string) bool {
+	ok, err := path.Match(pattern, s)
+	if err != nil {
+		ok = false
+	}
+	return ok
 }

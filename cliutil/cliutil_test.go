@@ -1,6 +1,7 @@
 package cliutil_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -8,6 +9,15 @@ import (
 	"github.com/gookit/goutil/dump"
 	"github.com/gookit/goutil/testutil/assert"
 )
+
+// test SplitMulti
+func TestSplitMulti(t *testing.T) {
+	ss := cliutil.SplitMulti([]string{"a,b", "c,d"}, ",")
+	assert.Equal(t, []string{"a", "b", "c", "d"}, ss)
+
+	ss = cliutil.SplitMulti([]string{"a,b", "c,d"}, ",,")
+	assert.Equal(t, []string{"a,b", "c,d"}, ss)
+}
 
 func TestCurrentShell(t *testing.T) {
 	path := cliutil.CurrentShell(true)
@@ -74,14 +84,14 @@ func TestParseLine(t *testing.T) {
 
 	// exception line string.
 	args = cliutil.ParseLine(`./app top sub -a ddd --xx msg"`)
-	dump.P(args)
+	// dump.P(args)
 	assert.Len(t, args, 7)
-	assert.Eq(t, "msg", args[6])
+	assert.Eq(t, "msg\"", args[6])
 
 	args = cliutil.StringToOSArgs(`./app top sub -a ddd --xx "msg "text"`)
-	dump.P(args)
+	// dump.P(args)
 	assert.Len(t, args, 7)
-	assert.Eq(t, "msg text", args[6])
+	assert.Eq(t, "msg \"text", args[6])
 }
 
 func TestWorkdir(t *testing.T) {
@@ -89,6 +99,10 @@ func TestWorkdir(t *testing.T) {
 	assert.NotEmpty(t, cliutil.BinDir())
 	assert.NotEmpty(t, cliutil.BinFile())
 	assert.NotEmpty(t, cliutil.BinName())
+	fmt.Println(cliutil.GetTermSize())
+	// repeat call
+	w, h := cliutil.GetTermSize()
+	fmt.Println(w, h)
 }
 
 func TestColorPrint(t *testing.T) {
@@ -142,4 +156,9 @@ func TestShellQuote(t *testing.T) {
 	assert.Eq(t, `"ab's"`, cliutil.ShellQuote("ab's"))
 	assert.Eq(t, `'ab"s'`, cliutil.ShellQuote(`ab"s`))
 	assert.Eq(t, "abs", cliutil.ShellQuote("abs"))
+}
+
+func TestOutputLines(t *testing.T) {
+	assert.Empty(t, cliutil.OutputLines("\n"))
+	assert.Eq(t, []string{"a", "b"}, cliutil.OutputLines("a\nb"))
 }

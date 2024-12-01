@@ -3,9 +3,11 @@ package dump
 import (
 	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"reflect"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/gookit/color"
@@ -15,6 +17,8 @@ import (
 // func newBufDumper(buf *bytes.Buffer) *Dumper {
 // 	return NewDumper(buf, 2)
 // }
+
+const skipInTest = 2
 
 var (
 	ints1 = []int{1, 2, 3, 4}
@@ -27,11 +31,11 @@ var (
 )
 
 func newStd() *Dumper {
-	return NewDumper(os.Stdout, 2)
+	return NewDumper(os.Stdout, skipInTest)
 }
 
 func TestNewDefaultOptions(t *testing.T) {
-	opts := NewDefaultOptions(nil, 2)
+	opts := NewDefaultOptions(nil, skipInTest)
 
 	assert.Eq(t, "<normal>text value</>", opts.ColorTheme.value("text value"))
 }
@@ -53,7 +57,7 @@ func TestDumper_Fprint(t *testing.T) {
 
 func TestDump_Basic(t *testing.T) {
 	buffer := new(bytes.Buffer)
-	dumper := NewDumper(buffer, 2)
+	dumper := NewDumper(buffer, skipInTest)
 
 	dumper.Dump(
 		nil,
@@ -93,7 +97,7 @@ func TestDump_Basic(t *testing.T) {
 
 func TestDump_Ints(t *testing.T) {
 	buffer := new(bytes.Buffer)
-	dumper := NewDumper(buffer, 2)
+	dumper := NewDumper(buffer, skipInTest)
 	dumper.WithoutColor()
 
 	// assert.Equal(t, 8, dumper.MoreLenNL)
@@ -119,7 +123,7 @@ func TestDump_Ints(t *testing.T) {
 
 func TestDump_Ptr(t *testing.T) {
 	buffer := new(bytes.Buffer)
-	dumper := NewDumper(buffer, 2)
+	dumper := NewDumper(buffer, skipInTest)
 	// dumper.WithoutColor()
 
 	var s string
@@ -151,10 +155,10 @@ func TestDump_Ptr(t *testing.T) {
 }
 
 // code from https://stackoverflow.com/questions/42664837/how-to-access-unexported-struct-fields-in-golang
-func TestDumper_AccessCantExportedField(t *testing.T) {
+func TestDumper_AccessCantExportedField(_ *testing.T) {
 	type MyStruct struct {
 		// id string
-		id interface{}
+		id any
 	}
 
 	myStruct := MyStruct{
@@ -189,12 +193,13 @@ func TestDumper_AccessCantExportedField(t *testing.T) {
 
 // code from https://stackoverflow.com/questions/42664837/how-to-access-unexported-struct-fields-in-golang
 func TestDumper_AccessCantExportedField1(t *testing.T) {
-	// init an nested struct
+	// init a nested struct
 	s1 := st1{st0{2}, 23, "inhere"}
+	assert.Eq(t, "inhere", s1.Name)
 	myS1 := struct {
-		// cannotExport interface{} // ok
+		// cannotExport any // ok
 		cannotExport st1 // ok
-		// CanExport interface{} ok
+		// CanExport any ok
 		CanExport st1 // ok
 	}{
 		cannotExport: s1,
@@ -202,12 +207,15 @@ func TestDumper_AccessCantExportedField1(t *testing.T) {
 	}
 
 	Println(myS1)
+
+	d := newStd().WithOptions(SkipPrivate())
+	d.Println(myS1)
 }
 
 // ------------------------- map -------------------------
 
-func TestDump_Map(t *testing.T) {
-	m4 := map[string]interface{}{
+func TestDump_Map(_ *testing.T) {
+	m4 := map[string]any{
 		"key1": 12,
 		"key2": "val1",
 		"key3": [][]int{
@@ -218,7 +226,7 @@ func TestDump_Map(t *testing.T) {
 		"key5": -34,
 		"key6": nil,
 		"key7": []int{23, 34},
-		"key8": map[string]interface{}{
+		"key8": map[string]any{
 			"key8sub1": []int{23, 34},
 			"key8sub2": []string{"a", "b"},
 		},
@@ -226,7 +234,7 @@ func TestDump_Map(t *testing.T) {
 	Print(m4)
 }
 
-func TestMap_Simpled(t *testing.T) {
+func TestMap_Simpled(_ *testing.T) {
 	m1 := map[int]int{
 		23: 12,
 		24: 13,
@@ -260,7 +268,7 @@ func TestMap_Simpled(t *testing.T) {
 
 	*/
 
-	m4 := map[string]interface{}{
+	m4 := map[string]any{
 		"key1": 12,
 		"key2": "val1",
 		"key3": 34,
@@ -284,7 +292,8 @@ func TestMap_Simpled(t *testing.T) {
 
 func TestMap_InterfaceNested(t *testing.T) {
 	s1 := st1{st0{2}, 23, "inhere"}
-	m1 := map[string]interface{}{
+	assert.Eq(t, "inhere", s1.Name)
+	m1 := map[string]any{
 		"key1": 112,
 		"key2": uint(112),
 		"key3": int64(112),
@@ -298,7 +307,7 @@ func TestMap_InterfaceNested(t *testing.T) {
 			"key1": 12,
 			"key2": 13,
 		},
-		"submap2": map[string]interface{}{
+		"submap2": map[string]any{
 			"key1": 12,
 			"key2": "abc",
 			"submap21": map[string]string{
@@ -306,10 +315,10 @@ func TestMap_InterfaceNested(t *testing.T) {
 				"key2": "val2",
 			},
 		},
-		"submap3": map[string]interface{}{
+		"submap3": map[string]any{
 			"key1": 12,
 			"key2": "abc",
-			"submap31": map[string]interface{}{
+			"submap31": map[string]any{
 				"key31": 12,
 				"key32": 13,
 				"user":  user,
@@ -352,11 +361,11 @@ var (
 	s1 = st1{st0{2}, 23, "inhere"}
 )
 
-func TestDump_Struct(t *testing.T) {
-
+func TestDump_Struct(_ *testing.T) {
+	P(user)
 }
 
-func TestStruct_WithNested(t *testing.T) {
+func TestStruct_WithNested(_ *testing.T) {
 	// buffer := new(bytes.Buffer)
 	dumper := newStd()
 	dumper.IndentChar = '.'
@@ -413,4 +422,29 @@ func TestStruct_WithNested(t *testing.T) {
 	//  },
 	//  Github: string("https://github.com/inhere"),
 	// }
+}
+
+func TestDumper_Dump_userType(_ *testing.T) {
+	type testSt struct {
+		name      string
+		mod       fs.FileMode
+		Mod2      fs.FileMode
+		Age       int
+		createdAt time.Time
+	}
+
+	st := testSt{
+		name:      "inhere",
+		mod:       0777,
+		Mod2:      0775,
+		Age:       23,
+		createdAt: time.Now(),
+	}
+
+	fmt.Println("------ use dumper ------")
+	P(st)
+	fmt.Println("------ use fmt.Println ------")
+	fmt.Println(st)
+	fmt.Println("------ use fmt.Printf ------")
+	fmt.Printf("%+v\n", st)
 }

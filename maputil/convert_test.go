@@ -2,6 +2,8 @@ package maputil_test
 
 import (
 	"fmt"
+	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/gookit/goutil/dump"
@@ -23,11 +25,33 @@ func TestToStringMap(t *testing.T) {
 
 	assert.Eq(t, ret["a"], "v0")
 	assert.Eq(t, ret["b"], "23")
+
+	keys := []string{"key0", "key1"}
+
+	mp := maputil.CombineToSMap(keys, []string{"val0", "val1"})
+	assert.Len(t, mp, 2)
+	assert.Eq(t, "val0", mp.Str("key0"))
 }
 
-func TestHttpQueryString(t *testing.T) {
+func TestToAnyMap(t *testing.T) {
+	src := map[string]string{"a": "v0", "b": "23"}
+
+	mp := maputil.ToAnyMap(src)
+	assert.Len(t, mp, 2)
+	assert.Eq(t, "v0", mp["a"])
+
+	src1 := map[string]any{"a": "v0", "b": "23"}
+	mp = maputil.ToAnyMap(src1)
+	assert.Len(t, mp, 2)
+	assert.Eq(t, "v0", mp["a"])
+
+	_, err := maputil.TryAnyMap(123)
+	assert.Err(t, err)
+}
+
+func TestHTTPQueryString(t *testing.T) {
 	src := map[string]any{"a": "v0", "b": 23}
-	str := maputil.HttpQueryString(src)
+	str := maputil.HTTPQueryString(src)
 
 	fmt.Println(str)
 	assert.Contains(t, str, "b=23")
@@ -74,7 +98,35 @@ func TestFlatten(t *testing.T) {
 	assert.ContainsKeys(t, mp, []string{"age", "name", "top.sub0", "top.sub1[0]", "top.sub1[1]"})
 	assert.Nil(t, maputil.Flatten(nil))
 
+	fmp := make(map[string]string)
+	maputil.FlatWithFunc(data, func(path string, val reflect.Value) {
+		fmp[path] = fmt.Sprintf("%v", val.Interface())
+	})
+	dump.P(fmp)
+	assert.Eq(t, "inhere", fmp["name"])
+	assert.Eq(t, "234", fmp["age"])
+	assert.Eq(t, "val0", fmp["top.sub0"])
+	assert.Eq(t, "val1-0", fmp["top.sub1[0]"])
+
 	assert.NotPanics(t, func() {
 		maputil.FlatWithFunc(nil, nil)
 	})
+}
+
+func TestStringsMapToAnyMap(t *testing.T) {
+	assert.Nil(t, maputil.StringsMapToAnyMap(nil))
+
+	hh := http.Header{
+		"key0": []string{"val0", "val1"},
+		"key1": []string{"val2"},
+	}
+
+	mp := maputil.StringsMapToAnyMap(hh)
+	assert.Contains(t, mp, "key0")
+	assert.Contains(t, mp, "key1")
+	assert.Len(t, mp["key0"], 2)
+
+	dm := maputil.Data(mp)
+	assert.Eq(t, "val0", dm.Str("key0.0"))
+	assert.Eq(t, "val2", dm.Str("key1"))
 }

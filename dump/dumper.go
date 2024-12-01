@@ -4,40 +4,17 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gookit/color"
 	"github.com/gookit/goutil/strutil"
 )
-
-// Options for dump vars
-type Options struct {
-	// Output the output writer
-	Output io.Writer
-	// NoType dont show data type TODO
-	NoType bool
-	// NoColor don't with color
-	NoColor bool
-	// IndentLen width. default is 2
-	IndentLen int
-	// IndentChar default is one space
-	IndentChar byte
-	// MaxDepth for nested print
-	MaxDepth int
-	// ShowFlag for display caller position
-	ShowFlag int
-	// MoreLenNL array/slice elements length > MoreLenNL, will wrap new line
-	// MoreLenNL int
-	// CallerSkip skip for call runtime.Caller()
-	CallerSkip int
-	// ColorTheme for print result.
-	ColorTheme Theme
-}
 
 // printValue must keep track of already-printed pointer values to avoid
 // infinite recursion. refer the pkg: github.com/kr/pretty
@@ -73,30 +50,8 @@ func NewDumper(out io.Writer, skip int) *Dumper {
 }
 
 // NewWithOptions create
-func NewWithOptions(fn func(opts *Options)) *Dumper {
-	d := NewDumper(os.Stdout, 3)
-	fn(d.Options)
-	return d
-}
-
-// NewDefaultOptions create.
-func NewDefaultOptions(out io.Writer, skip int) *Options {
-	if out == nil {
-		out = os.Stdout
-	}
-
-	return &Options{
-		Output: out,
-		// ---
-		MaxDepth: 5,
-		ShowFlag: Ffunc | Ffname | Fline,
-		// MoreLenNL: 8,
-		// ---
-		IndentLen:  2,
-		IndentChar: ' ',
-		CallerSkip: skip,
-		ColorTheme: defaultTheme,
-	}
+func NewWithOptions(fns ...OptionFunc) *Dumper {
+	return NewDumper(os.Stdout, defaultSkip).WithOptions(fns...)
 }
 
 // WithSkip for dumper
@@ -112,8 +67,10 @@ func (d *Dumper) WithoutColor() *Dumper {
 }
 
 // WithOptions for dumper
-func (d *Dumper) WithOptions(fn func(opts *Options)) *Dumper {
-	fn(d.Options)
+func (d *Dumper) WithOptions(fns ...OptionFunc) *Dumper {
+	for _, fn := range fns {
+		fn(d.Options)
+	}
 	return d
 }
 
@@ -121,26 +78,20 @@ func (d *Dumper) WithOptions(fn func(opts *Options)) *Dumper {
 func (d *Dumper) ResetOptions() {
 	d.curDepth = 0
 	d.visited = make(map[visit]int)
-	d.Options = NewDefaultOptions(os.Stdout, 2)
+	d.Options = NewDefaultOptions(os.Stdout, d.CallerSkip)
 }
 
 // Dump vars
-func (d *Dumper) Dump(vs ...interface{}) {
-	d.dump(vs...)
-}
+func (d *Dumper) Dump(vs ...any) { d.dump(vs...) }
 
 // Print vars. alias of Dump()
-func (d *Dumper) Print(vs ...interface{}) {
-	d.dump(vs...)
-}
+func (d *Dumper) Print(vs ...any) { d.dump(vs...) }
 
 // Println vars. alias of Dump()
-func (d *Dumper) Println(vs ...interface{}) {
-	d.dump(vs...)
-}
+func (d *Dumper) Println(vs ...any) { d.dump(vs...) }
 
 // Fprint print vars to io.Writer
-func (d *Dumper) Fprint(w io.Writer, vs ...interface{}) {
+func (d *Dumper) Fprint(w io.Writer, vs ...any) {
 	backup := d.Output // backup
 
 	d.Output = w
@@ -149,7 +100,7 @@ func (d *Dumper) Fprint(w io.Writer, vs ...interface{}) {
 }
 
 // dump go vars
-func (d *Dumper) dump(vs ...interface{}) {
+func (d *Dumper) dump(vs ...any) {
 	// reset some settings.
 	d.curDepth = 0
 	d.visited = make(map[visit]int)
@@ -198,9 +149,9 @@ func (d *Dumper) printCaller(pc uintptr, file string, line int) {
 		case Ffile: // full file path
 			nodes = append(nodes, file)
 		case Ffname: // only file name
-			fName := path.Base(file) // file name
+			fName := filepath.Base(file) // file name
 			nodes = append(nodes, fName)
-		case Fline:
+		default: // Fline
 			nodes = append(nodes, ":", lineS)
 		}
 	}
@@ -219,32 +170,44 @@ func (d *Dumper) printCaller(pc uintptr, file string, line int) {
 func (d *Dumper) advance(step int) {
 	d.curDepth += step
 	// d.nextDepth = d.curDepth + step
+	if d.curDepth < 1 {
+		d.indentBytes = []byte{}
+		return
+	}
+
 	d.indentBytes = strutil.RepeatBytes(d.IndentChar, d.IndentLen*d.curDepth)
 }
 
-func (d *Dumper) printOne(v interface{}) {
+func (d *Dumper) printOne(v any) {
 	if v == nil {
 		d.indentPrint("<nil>,\n")
 		return
 	}
 
+	if bts, ok := v.([]byte); ok && d.BytesAsString {
+		strVal := d.ColorTheme.string(string(bts))
+		lenTip := d.ColorTheme.valTip("#len=" + strconv.Itoa(len(bts)) + ",cap=" + strconv.Itoa(cap(bts)))
+		d.printf("[]byte(\"%s\"), %s\n", strVal, lenTip)
+		return
+	}
+
+	// print reflect value
 	rv := reflect.ValueOf(v)
 	d.printRValue(rv.Type(), rv)
 }
 
+// print reflect value
 func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
-	// var isPtr bool
 	// if is a ptr, get real type and value
-	if t.Kind() == reflect.Ptr {
+	isPtr := t.Kind() == reflect.Ptr
+	if isPtr {
 		if v.IsNil() {
 			d.printf("%s<nil>,\n", t.String())
 			return
 		}
 
-		v = v.Elem()
-		t = t.Elem()
-		// add "*" prefix
-		d.indentPrint("&")
+		v, t = v.Elem(), t.Elem()
+		d.indentPrint("&") // add prefix
 	}
 
 	if !v.IsValid() {
@@ -274,14 +237,14 @@ func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		intStr := strconv.FormatInt(v.Int(), 10)
 		intStr = d.ColorTheme.integer(intStr)
-		d.printf("%s(%s),\n", t.String(), intStr)
+		d.printf("%s(%s),%s\n", t.String(), intStr, d.rvStringer(t, v))
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		intStr := strconv.FormatUint(v.Uint(), 10)
 		intStr = d.ColorTheme.integer(intStr)
-		d.printf("%s(%s),\n", t.String(), intStr)
+		d.printf("%s(%s),%s\n", t.String(), intStr, d.rvStringer(t, v))
 	case reflect.String:
 		strVal := d.ColorTheme.string(v.String())
-		lenTip := d.ColorTheme.lenTip("#len=" + strconv.Itoa(v.Len()))
+		lenTip := d.ColorTheme.valTip("#len=" + strconv.Itoa(v.Len()))
 		d.printf("%s(\"%s\"), %s\n", t.String(), strVal, lenTip)
 	case reflect.Complex64, reflect.Complex128:
 		d.printf("%#v\n", v.Complex())
@@ -291,10 +254,11 @@ func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
 		}
 
 		eleNum := v.Len()
-		lenTip := d.ColorTheme.lenTip("#len=" + strconv.Itoa(eleNum))
+		lenTip := d.ColorTheme.valTip("#len=" + strconv.Itoa(eleNum) + ",cap=" + strconv.Itoa(v.Cap()))
 
-		d.indentPrint(t.String(), " [ ", lenTip, "\n")
+		d.write(!isPtr, t.String(), " [ ", lenTip, "\n")
 		d.msValue = false
+
 		for i := 0; i < eleNum; i++ {
 			sv := v.Index(i)
 			d.advance(1)
@@ -313,15 +277,36 @@ func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
 			break // don't print v again
 		}
 
-		d.indentPrint(d.ColorTheme.msType(t.String()), " {\n")
+		// up: special handel time.Time struct
+		if t == timeType {
+			d.printf("time.Time(%s),\n", d.ColorTheme.string(d.fmtTimeValue(v)))
+			break
+		}
+		// up: if is type alias of time.Time, use datetime format
+		if !isPtr && t.ConvertibleTo(timeType) {
+			tv := v.Convert(timeType)
+			d.printf("%s(%s),\n", t.String(), d.ColorTheme.string(d.fmtTimeValue(tv)))
+			break
+		}
+
+		d.write(!isPtr, d.ColorTheme.msType(t.String()), " {\n")
 		d.msValue = false
 
 		fldNum := v.NumField()
 		for i := 0; i < fldNum; i++ {
+			fName := t.Field(i).Name
+			if d.SkipPrivate && isUnexported(fName) {
+				continue
+			}
+
 			fv := v.Field(i)
+			if d.SkipNilField && isNilOrInvalid(fv) {
+				continue
+			}
+
 			d.advance(1)
 
-			fName := t.Field(i).Name
+			// print field name
 			d.indentPrint(d.ColorTheme.field(fName), ": ")
 
 			d.msValue = true
@@ -333,12 +318,17 @@ func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
 
 		d.indentPrint("},\n")
 	case reflect.Map:
-		lenTip := d.ColorTheme.lenTip("#len=" + strconv.Itoa(v.Len()))
-		d.indentPrint(d.ColorTheme.msType(t.String()), " { ", lenTip, "\n")
+		lenTip := d.ColorTheme.valTip("#len=" + strconv.Itoa(v.Len()))
+
+		d.write(!isPtr, d.ColorTheme.msType(t.String()), " { ", lenTip, "\n")
 		d.msValue = false
 
 		for _, key := range v.MapKeys() {
 			mv := v.MapIndex(key)
+			if d.SkipNilField && isNilOrInvalid(mv) {
+				continue
+			}
+
 			d.advance(1)
 
 			// print key name
@@ -418,7 +408,25 @@ func (d *Dumper) checkCyclicRef(t reflect.Type, v reflect.Value) (goon bool) {
 	return true
 }
 
-func (d *Dumper) print(v ...interface{}) {
+func (d *Dumper) rvStringer(rt reflect.Type, rv reflect.Value) string {
+	// fmt.Println("Implements fmt.Stringer:", t.Implements(stringerType))
+	if rv.CanInterface() && rt.Implements(stringerType) {
+		return d.ColorTheme.valTip(` #str: "` + rv.Interface().(fmt.Stringer).String() + `"`)
+	}
+	return ""
+}
+
+func (d *Dumper) fmtTimeValue(v reflect.Value) string {
+	var timeStr string
+	if v.CanInterface() {
+		timeStr = v.Interface().(time.Time).Format(time.RFC3339)
+	} else {
+		timeStr = v.String()
+	}
+	return timeStr
+}
+
+func (d *Dumper) print(v ...any) {
 	if d.NoColor {
 		_, _ = fmt.Fprint(d.Output, v...)
 	} else {
@@ -426,7 +434,7 @@ func (d *Dumper) print(v ...interface{}) {
 	}
 }
 
-func (d *Dumper) printf(f string, v ...interface{}) {
+func (d *Dumper) printf(f string, v ...any) {
 	if !d.msValue {
 		_, _ = d.Output.Write(d.indentBytes)
 	}
@@ -438,8 +446,8 @@ func (d *Dumper) printf(f string, v ...interface{}) {
 	}
 }
 
-func (d *Dumper) indentPrint(v ...interface{}) {
-	if !d.msValue {
+func (d *Dumper) write(indent bool, v ...any) {
+	if indent && !d.msValue {
 		_, _ = d.Output.Write(d.indentBytes)
 	}
 
@@ -448,4 +456,8 @@ func (d *Dumper) indentPrint(v ...interface{}) {
 	} else {
 		color.Fprint(d.Output, v...)
 	}
+}
+
+func (d *Dumper) indentPrint(v ...any) {
+	d.write(true, v...)
 }

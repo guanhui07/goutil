@@ -35,7 +35,7 @@ func TestFromDate(t *testing.T) {
 	assert.Eq(t, "2022-04-20 19:40:34", tx.Datetime())
 	assert.Eq(t, tx.Unix(), tx.Timestamp())
 
-	tx, err = timex.FromDate("invalid")
+	_, err = timex.FromDate("invalid")
 	assert.Err(t, err)
 }
 
@@ -79,6 +79,7 @@ func TestTimeX_AddDay(t *testing.T) {
 	yd1 := tx.AddDay(-1)
 	assert.Eq(t, yd.Unix(), yd1.Unix())
 	assert.Eq(t, yd.Unix(), tx.DayAgo(1).Unix())
+	assert.Eq(t, yd.Unix(), tx.SubDay(1).Unix())
 
 	assert.Eq(t, "1 day", tx.HowLongAgo(yd.Time))
 
@@ -98,11 +99,18 @@ func TestTimeX_AddSeconds(t *testing.T) {
 	tx := timex.Now()
 
 	h1 := tx.AddHour(1)
+	assert.Eq(t, h1.Unix(), tx.AddString("1h").Unix())
+
 	s1 := tx.AddSeconds(timex.OneHourSec)
 	assert.Eq(t, h1.Unix(), s1.Unix())
 
 	assert.Eq(t, timex.OneHour, h1.Diff(tx.Time))
 	assert.Eq(t, timex.OneHourSec, h1.DiffSec(tx.Time))
+	assert.Eq(t, timex.OneHourSec, h1.DiffUnix(tx.Unix()))
+
+	t2 := s1.SubHour(1)
+	assert.Eq(t, tx.Unix(), t2.Unix())
+	assert.Eq(t, tx.Unix(), s1.SubMinutes(60).Unix())
 }
 
 func TestTimeX_HourStart(t *testing.T) {
@@ -131,4 +139,16 @@ func TestTimeX_UnmarshalJSON(t *testing.T) {
 }`, req)
 	assert.NoErr(t, err)
 	assert.Eq(t, "2018-10-16 12:34", req.Time.TplFormat("Y-m-d H:i"))
+
+	// UnmarshalText
+	tx := &timex.Time{}
+	err = tx.UnmarshalText([]byte("2018-10-16 12:34:01"))
+	assert.NoErr(t, err)
+	assert.Eq(t, "2018-10-16 12:34", tx.TplFormat("Y-m-d H:i"))
+
+	// error
+	err = tx.UnmarshalText([]byte("invalid"))
+	assert.Err(t, err)
+
+	assert.Nil(t, tx.UnmarshalJSON([]byte("null")))
 }

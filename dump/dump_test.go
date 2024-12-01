@@ -21,7 +21,7 @@ func ExamplePrint() {
 		[]string{"ab", "cd"},
 		[]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
 		map[string]string{"key": "val"},
-		map[string]interface{}{
+		map[string]any{
 			"sub": map[string]string{"k": "v"},
 		},
 		struct {
@@ -65,6 +65,32 @@ func ExamplePrint() {
 func TestStd(t *testing.T) {
 	assert.Eq(t, Std().NoColor, false)
 	assert.Eq(t, Std().IndentLen, 2)
+}
+
+func TestStd2(t *testing.T) {
+	assert.Eq(t, Std2().NoColor, false)
+	assert.Eq(t, Std2().IndentLen, 2)
+	assert.Eq(t, Fnopos, Std2().ShowFlag)
+
+	buf := newBuffer()
+	Std2().WithOptions(func(opt *Options) {
+		opt.Output = buf
+		opt.NoColor = true
+	})
+	defer Reset2()
+
+	NoLoc(123, "abcd")
+
+	str := buf.String()
+	fmt.Print(str)
+	assert.StrContains(t, str, "int(123)")
+	assert.NotContains(t, str, "PRINT")
+
+	buf.Reset()
+	Clear(123, "abcd")
+	str = buf.String()
+	assert.StrContains(t, str, "int(123)")
+	assert.NotContains(t, str, "PRINT")
 }
 
 func TestConfig(t *testing.T) {
@@ -117,7 +143,7 @@ func TestPrint(t *testing.T) {
 
 	buf.Reset()
 	Fprint(buf, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11})
-	is.Eq(`[]int [ #len=11
+	is.Eq(`[]int [ #len=11,cap=11
   int(1),
   int(2),
   int(3),
@@ -146,7 +172,7 @@ func TestPrint(t *testing.T) {
 `, buf.String())
 
 	buf.Reset()
-	Fprint(buf, map[string]interface{}{
+	Fprint(buf, map[string]any{
 		"key": "val",
 		"sub": map[string]string{"k": "v"},
 	})
@@ -177,7 +203,7 @@ func TestPrintNil(t *testing.T) {
 	is.Eq("int(0),\n", buf.String())
 	buf.Reset()
 
-	var f interface{}
+	var f any
 	V(f)
 	is.Eq("<nil>,\n", buf.String())
 	buf.Reset()
@@ -209,11 +235,11 @@ func TestStruct_CannotExportField(t *testing.T) {
 	assert.Contains(t, str, "opt4: string(\"abc\"),")
 }
 
-func TestStruct_InterfaceField(t *testing.T) {
+func ExampleStruct_interfaceField() {
 	myS1 := struct {
-		// cannotExport interface{} // ok
+		// cannotExport any // ok
 		cannotExport st1 // ok
-		// CanExport interface{} ok
+		// CanExport any ok
 		CanExport st1 // ok
 	}{
 		cannotExport: s1,
@@ -225,11 +251,11 @@ func TestStruct_InterfaceField(t *testing.T) {
 	fmt.Println(myS1)
 }
 
-func TestStruct_MapInterfacedValue(t *testing.T) {
+func ExampleStruct_mapInterfacedValue() {
 	myS2 := &struct {
-		cannotExport map[string]interface{}
+		cannotExport map[string]any
 	}{
-		cannotExport: map[string]interface{}{
+		cannotExport: map[string]any{
 			"key1": 12,
 			"key2": "abcd123",
 		},
@@ -243,9 +269,9 @@ func TestStruct_MapInterfacedValue(t *testing.T) {
 	type st2 struct {
 		st1
 		Github string
-		Face1  interface{}
-		face2  interface{}
-		faces  map[string]interface{}
+		Face1  any
+		face2  any
+		faces  map[string]any
 	}
 
 	s2 := st2{
@@ -253,7 +279,7 @@ func TestStruct_MapInterfacedValue(t *testing.T) {
 		Github: "https://github.com/inhere",
 		Face1:  s1,
 		face2:  s1,
-		faces: map[string]interface{}{
+		faces: map[string]any{
 			"key1": 12,
 			"key2": "abc2344",
 		},
@@ -264,7 +290,7 @@ func TestStruct_MapInterfacedValue(t *testing.T) {
 	fmt.Println(s2)
 }
 
-func TestStruct_ptrField(t *testing.T) {
+func TestStruct_ptrField(_ *testing.T) {
 	type userOpts struct {
 		Int *int
 		// use ptr
@@ -282,21 +308,53 @@ func TestStruct_ptrField(t *testing.T) {
 	color.Infoln("\nUse fmt.Println:")
 	fmt.Println(opt)
 	fmt.Println("---------------------------------------------------------------")
+
+	opt = &userOpts{
+		Str: &astr,
+	}
+
+	Println(opt)
+	/* Output:
+	PRINT AT github.com/gookit/goutil/dump.TestStruct_ptrField(dump_test.go:316)
+	&dump.userOpts {
+	  Int: *int<nil>,
+	  Str: &string("xyz"), #len=3
+	},
+	*/
+	d := newStd().WithOptions(SkipNilField())
+	d.Println(opt)
+	/* Output:
+	PRINT AT github.com/gookit/goutil/dump.TestStruct_ptrField(dump_test.go:318)
+	&dump.userOpts {
+	    Str: &string("xyz"), #len=3
+	  },
+
+	*/
 }
 
 func TestFormat(t *testing.T) {
-	s := Format(23, "abc", map[string]interface{}{
+	s := Format(23, "abc", map[string]any{
 		"key1": 12,
 		"key2": "abc2344",
 	})
 
 	assert.NotEmpty(t, s)
 	fmt.Println(s)
+
+	var ob any
+	ob = user
+
+	s = Format(ob)
+	fmt.Println(s)
+
+	ob = nil
+	s = Format(ob)
+	fmt.Println(s)
 }
 
 func TestPrint_over_max_depth(t *testing.T) {
-	a := map[string]interface{}{}
-	a["circular"] = map[string]interface{}{
+	a := map[string]any{}
+	a["circular"] = map[string]any{
 		"a": a,
 	}
 
@@ -310,18 +368,18 @@ func TestPrint_over_max_depth(t *testing.T) {
 }
 
 func TestPrint_cyclic_slice(t *testing.T) {
-	a := map[string]interface{}{
+	a := map[string]any{
 		"bool":   true,
 		"number": 1 + 1i,
 		"bytes":  []byte{97, 98, 99},
 		"lines":  "first line\nsecond line",
-		"slice":  []interface{}{1, 2},
+		"slice":  []any{1, 2},
 		"time":   time.Now(),
 		"struct": struct{ test int32 }{
 			test: 13,
 		},
 	}
-	a["slice"].([]interface{})[1] = a["slice"]
+	a["slice"].([]any)[1] = a["slice"]
 
 	// TIP: will stack overflow
 	// fmt.Println(a)

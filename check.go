@@ -3,28 +3,42 @@ package goutil
 import (
 	"reflect"
 
+	"github.com/gookit/goutil/internal/checkfn"
 	"github.com/gookit/goutil/reflects"
-	"github.com/gookit/goutil/stdutil"
 )
 
 // IsNil value check
-func IsNil(v interface{}) bool {
+func IsNil(v any) bool {
 	if v == nil {
 		return true
 	}
 	return reflects.IsNil(reflect.ValueOf(v))
 }
 
+// IsZero value check, alias of the IsEmpty()
+var IsZero = IsEmpty
+
 // IsEmpty value check
-func IsEmpty(v interface{}) bool {
+func IsEmpty(v any) bool {
 	if v == nil {
 		return true
 	}
 	return reflects.IsEmpty(reflect.ValueOf(v))
 }
 
+// Alias of the IsEmptyReal()
+var IsZeroReal = IsEmptyReal
+
+// IsEmptyReal checks for empty given value and also real empty value if the passed value is a pointer
+func IsEmptyReal(v any) bool {
+	if v == nil {
+		return true
+	}
+	return reflects.IsEmptyReal(reflect.ValueOf(v))
+}
+
 // IsFunc value
-func IsFunc(val interface{}) bool {
+func IsFunc(val any) bool {
 	if val == nil {
 		return false
 	}
@@ -34,7 +48,7 @@ func IsFunc(val interface{}) bool {
 // IsEqual determines if two objects are considered equal.
 //
 // TIP: cannot compare function type
-func IsEqual(src, dst interface{}) bool {
+func IsEqual(src, dst any) bool {
 	if src == nil || dst == nil {
 		return src == dst
 	}
@@ -54,8 +68,8 @@ func IsEqual(src, dst interface{}) bool {
 //	map         - check key exists
 //	string 	    - check sub-string exists
 //	array,slice - check sub-element exists
-func Contains(data, elem interface{}) bool {
-	_, found := stdutil.CheckContains(data, elem)
+func Contains(data, elem any) bool {
+	_, found := checkfn.Contains(data, elem)
 	return found
 }
 
@@ -66,7 +80,7 @@ func Contains(data, elem interface{}) bool {
 //	map         - check key exists
 //	string 	    - check sub-string exists
 //	array,slice - check sub-element exists
-func IsContains(data, elem interface{}) bool {
-	_, found := stdutil.CheckContains(data, elem)
+func IsContains(data, elem any) bool {
+	_, found := checkfn.Contains(data, elem)
 	return found
 }

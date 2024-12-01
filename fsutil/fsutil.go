@@ -1,74 +1,73 @@
+// Package fsutil Filesystem util functions, quick create, read and write file. eg: file and dir check, operate
 package fsutil
 
 import (
-	"io"
-	"io/ioutil"
-	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/gookit/goutil/basefn"
+	"github.com/gookit/goutil/internal/comfunc"
 )
 
-const (
-	// MimeSniffLen sniff Length, use for detect file mime type
-	MimeSniffLen = 512
-)
+// PathSep alias of os.PathSeparator
+const PathSep = os.PathSeparator
 
-// OSTempFile create a temp file on os.TempDir()
-//
-// Usage:
-// 	fsutil.OSTempFile("example.*.txt")
-func OSTempFile(pattern string) (*os.File, error) {
-	return ioutil.TempFile(os.TempDir(), pattern)
+// JoinPaths elements, alias of filepath.Join()
+func JoinPaths(elem ...string) string {
+	return filepath.Join(elem...)
 }
 
-// TempFile is like ioutil.TempFile, but can custom temp dir.
-//
-// Usage:
-// 	fsutil.TempFile("", "example.*.txt")
-func TempFile(dir, pattern string) (*os.File, error) {
-	return ioutil.TempFile(dir, pattern)
+// JoinSubPaths elements, like the filepath.Join()
+func JoinSubPaths(basePath string, elem ...string) string {
+	paths := make([]string, len(elem)+1)
+	paths[0] = basePath
+	copy(paths[1:], elem)
+	return filepath.Join(paths...)
 }
 
-// OSTempDir creates a new temp dir on os.TempDir and return the temp dir path
-//
-// Usage:
-// 	fsutil.OSTempDir("example.*")
-func OSTempDir(pattern string) (string, error) {
-	return ioutil.TempDir(os.TempDir(), pattern)
+// SlashPath alias of filepath.ToSlash
+func SlashPath(path string) string {
+	return filepath.ToSlash(path)
 }
 
-// TempDir creates a new temp dir and return the temp dir path
-//
-// Usage:
-// 	fsutil.TempDir("", "example.*")
-// 	fsutil.TempDir("testdata", "example.*")
-func TempDir(dir, pattern string) (string, error) {
-	return ioutil.TempDir(dir, pattern)
+// UnixPath like of filepath.ToSlash, but always replace
+func UnixPath(path string) string {
+	if !strings.ContainsRune(path, '\\') {
+		return path
+	}
+	return strings.ReplaceAll(path, "\\", "/")
 }
 
-// MimeType get File Mime Type name. eg "image/png"
-func MimeType(path string) (mime string) {
-	file, err := os.Open(path)
+// ToAbsPath convert path to absolute path.
+// Will expand home dir, if empty will return current work dir
+//
+// TIP: will don't check path is really exists
+func ToAbsPath(p string) string {
+	// return current work dir
+	if len(p) == 0 {
+		wd, err := os.Getwd()
+		if err != nil {
+			return p
+		}
+		return wd
+	}
+
+	if IsAbsPath(p) {
+		return p
+	}
+
+	// expand home dir
+	if p[0] == '~' {
+		return comfunc.ExpandHome(p)
+	}
+
+	wd, err := os.Getwd()
 	if err != nil {
-		return
+		return p
 	}
-
-	return ReaderMimeType(file)
+	return filepath.Join(wd, p)
 }
 
-// ReaderMimeType get the io.Reader mimeType
-//
-// Usage:
-// 	file, err := os.Open(filepath)
-// 	if err != nil {
-// 		return
-// 	}
-//	mime := ReaderMimeType(file)
-func ReaderMimeType(r io.Reader) (mime string) {
-	var buf [MimeSniffLen]byte
-	n, _ := io.ReadFull(r, buf[:])
-	if n == 0 {
-		return ""
-	}
-
-	return http.DetectContentType(buf[:n])
-}
+// Must2 ok for (any, error) result. if has error, will panic
+func Must2(_ any, err error) { basefn.MustOK(err) }

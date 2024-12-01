@@ -1,5 +1,6 @@
 package assert
 
+// Nil asserts that the given is a nil value
 func (as *Assertions) Nil(give any, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = Nil(as.t, give, fmtAndArgs...)
@@ -13,48 +14,56 @@ func (as *Assertions) NotNil(val any, fmtAndArgs ...any) *Assertions {
 	return as
 }
 
+// True check, please see True()
 func (as *Assertions) True(give bool, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = True(as.t, give, fmtAndArgs...)
 	return as
 }
 
+// False check, please see False()
 func (as *Assertions) False(give bool, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = False(as.t, give, fmtAndArgs...)
 	return as
 }
 
+// Empty check, please see Empty()
 func (as *Assertions) Empty(give any, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = Empty(as.t, give, fmtAndArgs...)
 	return as
 }
 
+// NotEmpty check, please see NotEmpty()
 func (as *Assertions) NotEmpty(give any, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = NotEmpty(as.t, give, fmtAndArgs...)
 	return as
 }
 
+// Panics check, please see Panics()
 func (as *Assertions) Panics(fn PanicRunFunc, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = Panics(as.t, fn, fmtAndArgs...)
 	return as
 }
 
+// NotPanics check, please see NotPanics()
 func (as *Assertions) NotPanics(fn PanicRunFunc, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = NotPanics(as.t, fn, fmtAndArgs...)
 	return as
 }
 
-func (as *Assertions) PanicsMsg(fn PanicRunFunc, wantVal interface{}, fmtAndArgs ...any) *Assertions {
+// PanicsMsg check, please see PanicsMsg()
+func (as *Assertions) PanicsMsg(fn PanicRunFunc, wantVal any, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = PanicsMsg(as.t, fn, wantVal, fmtAndArgs...)
 	return as
 }
 
+// PanicsErrMsg check, please see PanicsErrMsg()
 func (as *Assertions) PanicsErrMsg(fn PanicRunFunc, errMsg string, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = PanicsErrMsg(as.t, fn, errMsg, fmtAndArgs...)
@@ -96,8 +105,22 @@ func (as *Assertions) NoErr(err error, fmtAndArgs ...any) *Assertions {
 	return as
 }
 
+// NoError asserts that the given is a nil error
+func (as *Assertions) NoError(err error, fmtAndArgs ...any) *Assertions {
+	as.t.Helper()
+	as.ok = NoErr(as.t, err, fmtAndArgs...)
+	return as
+}
+
 // Err asserts that the given is a not nil error
 func (as *Assertions) Err(err error, fmtAndArgs ...any) *Assertions {
+	as.t.Helper()
+	as.ok = Err(as.t, err, fmtAndArgs...)
+	return as
+}
+
+// Error asserts that the given is a not nil error
+func (as *Assertions) Error(err error, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = Err(as.t, err, fmtAndArgs...)
 	return as
@@ -145,6 +168,15 @@ func (as *Assertions) Eq(want, give any, fmtAndArgs ...any) *Assertions {
 	return as
 }
 
+// Equal asserts that the want should equal to the given
+//
+// Alias of Eq()
+func (as *Assertions) Equal(want, give any, fmtAndArgs ...any) *Assertions {
+	as.t.Helper()
+	as.ok = Eq(as.t, want, give, fmtAndArgs...)
+	return as
+}
+
 // Neq asserts that the want should not be equal to the given.
 // alias of NotEq()
 func (as *Assertions) Neq(want, give any, fmtAndArgs ...any) *Assertions {
@@ -160,17 +192,40 @@ func (as *Assertions) NotEq(want, give any, fmtAndArgs ...any) *Assertions {
 	return as
 }
 
+// NotEqual asserts that the want should not be equal to the given
+//
+// Alias of NotEq()
+func (as *Assertions) NotEqual(want, give any, fmtAndArgs ...any) *Assertions {
+	as.t.Helper()
+	as.ok = NotEq(as.t, want, give, fmtAndArgs...)
+	return as
+}
+
 // Lt asserts that the give(intX) should not be less than max
-func (as *Assertions) Lt(give, max int, fmtAndArgs ...any) *Assertions {
+func (as *Assertions) Lt(give, max any, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = Lt(as.t, give, max, fmtAndArgs...)
 	return as
 }
 
-// Gt asserts that the give(intX) should not be greater than max
-func (as *Assertions) Gt(give, min int, fmtAndArgs ...any) *Assertions {
+// Lte asserts that the give(intX) should not be less than or equal to max
+func (as *Assertions) Lte(give, max any, fmtAndArgs ...any) *Assertions {
+	as.t.Helper()
+	as.ok = Lte(as.t, give, max, fmtAndArgs...)
+	return as
+}
+
+// Gt asserts that the give(intX) should not be greater than min
+func (as *Assertions) Gt(give, min any, fmtAndArgs ...any) *Assertions {
 	as.t.Helper()
 	as.ok = Gt(as.t, give, min, fmtAndArgs...)
+	return as
+}
+
+// Gte asserts that the give(intX) should not be greater than or equal to min
+func (as *Assertions) Gte(give, min any, fmtAndArgs ...any) *Assertions {
+	as.t.Helper()
+	as.ok = Gte(as.t, give, min, fmtAndArgs...)
 	return as
 }
 

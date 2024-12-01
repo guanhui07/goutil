@@ -3,8 +3,11 @@ package dump
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
+	"reflect"
+	"time"
 
 	"github.com/gookit/color"
 )
@@ -18,6 +21,8 @@ const (
 	Fline
 )
 
+const defaultSkip = 3
+
 var (
 	// valid flag for print caller info
 	callerFlags = []int{Ffunc, Ffile, Ffname, Fline}
@@ -28,18 +33,23 @@ var (
 		"value":  "normal",
 		// special type
 		"msType":  "green", // for keywords map, struct type
-		"lenTip":  "gray",  // tips comments for string, slice, map len
+		"valTip":  "gray",  // tips comments for string, slice, map len
 		"string":  "green",
 		"integer": "lightBlue",
 	}
 
 	// std dumper
-	std = NewDumper(os.Stdout, 3)
+	std = NewDumper(os.Stdout, defaultSkip)
 	// no location dumper.
 	std2 = NewWithOptions(func(opts *Options) {
 		opts.Output = os.Stdout
 		opts.ShowFlag = Fnopos
 	})
+
+	// some type init
+	stringerType = reflect.TypeOf((*fmt.Stringer)(nil)).Elem()
+	// time.Time type
+	timeType = reflect.TypeOf(time.Time{})
 )
 
 // Theme color code/tag map for dump
@@ -49,7 +59,7 @@ func (ct Theme) caller(s string) string  { return ct.wrap("caller", s) }
 func (ct Theme) field(s string) string   { return ct.wrap("field", s) }
 func (ct Theme) value(s string) string   { return ct.wrap("value", s) }
 func (ct Theme) msType(s string) string  { return ct.wrap("msType", s) }
-func (ct Theme) lenTip(s string) string  { return ct.wrap("lenTip", s) }
+func (ct Theme) valTip(s string) string  { return ct.wrap("valTip", s) }
 func (ct Theme) string(s string) string  { return ct.wrap("string", s) }
 func (ct Theme) integer(s string) string { return ct.wrap("integer", s) }
 
@@ -62,47 +72,52 @@ func (ct Theme) wrap(key string, s string) string {
 }
 
 // Std dumper
-func Std() *Dumper {
-	return std
-}
+func Std() *Dumper { return std }
 
 // Reset std dumper
-func Reset() {
-	std = NewDumper(os.Stdout, 3)
-}
+func Reset() { std = NewDumper(os.Stdout, 3) }
 
 // Config std dumper
-func Config(fn func(opts *Options)) {
-	std.WithOptions(fn)
-}
+func Config(fns ...OptionFunc) { std.WithOptions(fns...) }
 
 // V like fmt.Println, but the output is clearer and more beautiful
-func V(vs ...interface{}) {
+func V(vs ...any) {
 	std.Dump(vs...)
 }
 
 // P like fmt.Println, but the output is clearer and more beautiful
-func P(vs ...interface{}) {
+func P(vs ...any) {
 	std.Print(vs...)
 }
 
 // Print like fmt.Println, but the output is clearer and more beautiful
-func Print(vs ...interface{}) {
+func Print(vs ...any) {
 	std.Print(vs...)
 }
 
 // Println like fmt.Println, but the output is clearer and more beautiful
-func Println(vs ...interface{}) {
+func Println(vs ...any) {
 	std.Println(vs...)
 }
 
 // Fprint like fmt.Println, but the output is clearer and more beautiful
-func Fprint(w io.Writer, vs ...interface{}) {
+func Fprint(w io.Writer, vs ...any) {
 	std.Fprint(w, vs...)
 }
 
+// Std2 dumper
+func Std2() *Dumper { return std2 }
+
+// Reset2 reset std2 dumper
+func Reset2() {
+	std2 = NewWithOptions(func(opts *Options) {
+		opts.Output = os.Stdout
+		opts.ShowFlag = Fnopos
+	})
+}
+
 // Format like fmt.Println, but the output is clearer and more beautiful
-func Format(vs ...interface{}) string {
+func Format(vs ...any) string {
 	w := &bytes.Buffer{}
 
 	std2.Fprint(w, vs...)
@@ -110,11 +125,29 @@ func Format(vs ...interface{}) string {
 }
 
 // NoLoc dump vars data, without location.
-func NoLoc(vs ...interface{}) {
+func NoLoc(vs ...any) {
 	std2.Println(vs...)
 }
 
 // Clear dump clear data, without location.
-func Clear(vs ...interface{}) {
+func Clear(vs ...any) {
 	std2.Println(vs...)
+}
+
+// is unexported field name on struct
+func isUnexported(fieldName string) bool {
+	return fieldName[0] < 'A' || fieldName[0] > 'Z'
+}
+
+func isNilOrInvalid(v reflect.Value) bool {
+	if !v.IsValid() {
+		return true
+	}
+
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer, reflect.UnsafePointer, reflect.Interface, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

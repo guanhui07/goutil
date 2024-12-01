@@ -7,13 +7,6 @@ import (
 	"github.com/gookit/goutil/testutil/assert"
 )
 
-func TestMd5(t *testing.T) {
-	assert.Eq(t, "e10adc3949ba59abbe56e057f20f883e", strutil.Md5("123456"))
-	assert.Eq(t, "e10adc3949ba59abbe56e057f20f883e", strutil.MD5("123456"))
-	assert.Eq(t, "a906449d5769fa7361d7ecc6aa3f6d28", strutil.GenMd5("123abc"))
-	assert.Eq(t, "289dff07669d7a23de0ef88d2f7129e7", strutil.GenMd5(234))
-}
-
 func TestEscape(t *testing.T) {
 	tests := struct{ give, want string }{
 		"<p>some text</p>",
@@ -48,10 +41,18 @@ func TestURLEnDecode(t *testing.T) {
 func TestBaseDecode(t *testing.T) {
 	is := assert.New(t)
 
-	is.Eq("MFRGG===", strutil.B32Encode("abc"))
-	is.Eq("abc", strutil.B32Decode("MFRGG==="))
+	is.Eq("GEZGCYTD", strutil.B32Encode("12abc"))
+	is.Eq("12abc", strutil.B32Decode("GEZGCYTD"))
 
-	is.Eq("YWJj", strutil.Base64("abc"))
+	// b23 hex
+	is.Eq("64P62OJ3", strutil.B32Hex.EncodeToString([]byte("12abc")))
+	// fmt.Println(time.Now().Format("20060102150405"))
+	dateStr := "20230908101122"
+	is.Eq("68O34CPG74O3GC9G64OJ4CG", strutil.B32Hex.EncodeToString([]byte(dateStr)))
+
 	is.Eq("YWJj", strutil.B64Encode("abc"))
 	is.Eq("abc", strutil.B64Decode("YWJj"))
+
+	is.Eq([]byte("YWJj"), strutil.B64EncodeBytes([]byte("abc")))
+	is.Eq([]byte("abc"), strutil.B64DecodeBytes([]byte("YWJj")))
 }

@@ -45,7 +45,8 @@ type XErrorFace interface {
 // ErrorX struct
 //
 // TIPS:
-//  fmt pkg call order: Format > GoString > Error > String
+//
+//	fmt pkg call order: Format > GoString > Error > String
 type ErrorX struct {
 	// trace stack
 	*stack
@@ -70,7 +71,7 @@ func (e *ErrorX) Unwrap() error {
 	return e.prev
 }
 
-// Format error
+// Format error, will output stack information.
 func (e *ErrorX) Format(s fmt.State, verb rune) {
 	// format current error: only output on have msg
 	if len(e.msg) > 0 {
@@ -102,7 +103,7 @@ func (e *ErrorX) GoString() string {
 	return buf.String()
 }
 
-// Error to string, not contains stack information.
+// Error msg string, not contains stack information.
 func (e *ErrorX) Error() string {
 	var buf bytes.Buffer
 	e.writeMsgTo(&buf)
@@ -181,7 +182,8 @@ func (e *ErrorX) CallerFunc() *Func {
 // Location information for the caller func. more please see CallerFunc
 //
 // Returns eg:
-// 	github.com/gookit/goutil/errorx_test.TestWithPrev(), errorx_test.go:34
+//
+//	github.com/gookit/goutil/errorx_test.TestWithPrev(), errorx_test.go:34
 func (e *ErrorX) Location() string {
 	if e.stack == nil {
 		return "unknown"
@@ -203,7 +205,7 @@ func New(msg string) error {
 
 // Newf error with format message, and with caller stacks.
 // alias of Errorf()
-func Newf(tpl string, vars ...interface{}) error {
+func Newf(tpl string, vars ...any) error {
 	return &ErrorX{
 		msg:   fmt.Sprintf(tpl, vars...),
 		stack: callersStack(stdOpt.SkipDepth, stdOpt.TraceDepth),
@@ -211,7 +213,7 @@ func Newf(tpl string, vars ...interface{}) error {
 }
 
 // Errorf error with format message, and with caller stacks
-func Errorf(tpl string, vars ...interface{}) error {
+func Errorf(tpl string, vars ...any) error {
 	return &ErrorX{
 		msg:   fmt.Sprintf(tpl, vars...),
 		stack: callersStack(stdOpt.SkipDepth, stdOpt.TraceDepth),
@@ -228,7 +230,7 @@ func With(err error, msg string) error {
 }
 
 // Withf error and with format message, and with caller stacks
-func Withf(err error, tpl string, vars ...interface{}) error {
+func Withf(err error, tpl string, vars ...any) error {
 	return &ErrorX{
 		msg:   fmt.Sprintf(tpl, vars...),
 		prev:  err,
@@ -246,7 +248,7 @@ func WithPrev(err error, msg string) error {
 }
 
 // WithPrevf error and with format message, and with caller stacks. alias of Withf()
-func WithPrevf(err error, tpl string, vars ...interface{}) error {
+func WithPrevf(err error, tpl string, vars ...any) error {
 	return &ErrorX{
 		msg:   fmt.Sprintf(tpl, vars...),
 		prev:  err,
@@ -263,6 +265,7 @@ func WithStack(err error) error {
 	if err == nil {
 		return nil
 	}
+
 	return &ErrorX{
 		msg: err.Error(),
 		// prev:  err,
@@ -275,6 +278,7 @@ func Traced(err error) error {
 	if err == nil {
 		return nil
 	}
+
 	return &ErrorX{
 		msg:   err.Error(),
 		stack: callersStack(stdOpt.SkipDepth, stdOpt.TraceDepth),
@@ -286,6 +290,7 @@ func Stacked(err error) error {
 	if err == nil {
 		return nil
 	}
+
 	return &ErrorX{
 		msg:   err.Error(),
 		stack: callersStack(stdOpt.SkipDepth, stdOpt.TraceDepth),
@@ -322,7 +327,7 @@ func Wrap(err error, msg string) error {
 }
 
 // Wrapf error with format message, but not with stack
-func Wrapf(err error, tpl string, vars ...interface{}) error {
+func Wrapf(err error, tpl string, vars ...any) error {
 	if err == nil {
 		return fmt.Errorf(tpl, vars...)
 	}

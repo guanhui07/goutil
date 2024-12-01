@@ -4,10 +4,26 @@ import (
 	"flag"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/gookit/color"
 )
+
+const (
+	// RegGoodName match a good option, argument name
+	RegGoodName = `^[a-zA-Z][\w-]*$`
+)
+
+var (
+	// GoodName good name for option and argument
+	goodName = regexp.MustCompile(RegGoodName)
+)
+
+// IsGoodName check
+func IsGoodName(name string) bool {
+	return goodName.MatchString(name)
+}
 
 // IsZeroValue determines whether the string represents the zero
 // value for a flag.
@@ -48,6 +64,7 @@ func AddPrefixes2(name string, shorts []string, nameAtEnd bool) string {
 		return AddPrefix(name)
 	}
 
+	sort.Strings(shorts)
 	withPfx := make([]string, 0, shortLn+1)
 	if !nameAtEnd {
 		withPfx = append(withPfx, AddPrefix(name))
@@ -69,7 +86,7 @@ func SplitShortcut(shortcut string) []string {
 	return FilterNames(strings.Split(shortcut, ","))
 }
 
-// FilterNames for option names
+// FilterNames for option names, will clear there are: "-+= "
 func FilterNames(names []string) []string {
 	filtered := make([]string, 0, len(names))
 	for _, sub := range names {
@@ -95,7 +112,7 @@ func IsFlagHelpErr(err error) bool {
 // regex: "`.+`"
 var codeReg = regexp.MustCompile("`" + `.+` + "`")
 
-// WrapColorForCode WrapColorForCode. convert "hello `keywords`" to "hello <mga>keywords</>"
+// WrapColorForCode convert "hello `keywords`" to "hello <mga>keywords</>"
 func WrapColorForCode(s string) string {
 	if !strings.ContainsRune(s, '`') {
 		return s

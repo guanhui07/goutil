@@ -1,6 +1,7 @@
 package strutil_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gookit/goutil/strutil"
@@ -13,40 +14,37 @@ func TestSimilarity(t *testing.T) {
 	is.True(ok)
 }
 
-func TestRepeat(t *testing.T) {
-	assert.Eq(t, "aaa", strutil.Repeat("a", 3))
-	assert.Eq(t, "DD", strutil.Repeat("D", 2))
-	assert.Eq(t, "D", strutil.Repeat("D", 1))
-	assert.Eq(t, "", strutil.Repeat("0", 0))
-	assert.Eq(t, "", strutil.Repeat("D", -3))
-}
+func TestValid(t *testing.T) {
+	is := assert.New(t)
 
-func TestRepeatRune(t *testing.T) {
-	tests := []struct {
-		want  []rune
-		give  rune
-		times int
-	}{
-		{[]rune("bbb"), 'b', 3},
-		{[]rune("..."), '.', 3},
-		{[]rune("  "), ' ', 2},
-	}
+	is.Eq("ab", strutil.Valid("ab", ""))
+	is.Eq("ab", strutil.Valid("ab", "cd"))
+	is.Eq("cd", strutil.Valid("", "cd"))
+	is.Empty(strutil.Valid("", ""))
 
-	for _, tt := range tests {
-		assert.Eq(t, tt.want, strutil.RepeatRune(tt.give, tt.times))
-	}
-}
+	is.Eq("cd", strutil.OrElse("", "cd"))
+	is.Eq("ab", strutil.OrElse("ab", "cd"))
 
-func TestRepeatBytes(t *testing.T) {
-	assert.Eq(t, []byte("aaa"), strutil.RepeatBytes('a', 3))
-}
+	var str = "non-empty"
+	is.Equal(str, strutil.OrElseNilSafe(&str, "fallback"))
+	str = ""
+	is.Equal("fallback", strutil.OrElseNilSafe(&str, "fallback"))
+	is.Equal("default", strutil.OrElseNilSafe(nil, "default"))
 
-func TestRenderTemplate(t *testing.T) {
-	tpl := "hi, My name is {{ .name | upFirst }}, age is {{ .age }}"
-	assert.Eq(t, "hi, My name is Inhere, age is 2000", strutil.RenderTemplate(tpl, map[string]interface{}{
-		"name": "inhere",
-		"age":  2000,
-	}, nil))
+	is.Eq(" ", strutil.ZeroOr(" ", "cd"))
+	is.Eq("cd", strutil.ZeroOr("", "cd"))
+	is.Eq("ab", strutil.ZeroOr("ab", "cd"))
+
+	is.Eq("cd", strutil.BlankOr("", "cd"))
+	is.Eq("cd", strutil.BlankOr(" ", "cd"))
+	is.Eq("ab", strutil.BlankOr("ab", "cd"))
+	is.Eq("ab", strutil.BlankOr(" ab ", "cd"))
+
+	is.Eq("ab", strutil.OrCond(true, "ab", "cd"))
+	is.Eq("cd", strutil.OrCond(false, "ab", "cd"))
+
+	is.Eq("ab", strutil.OrHandle("  ab  ", strings.TrimSpace))
+	is.Empty(strutil.OrHandle("", strings.TrimSpace))
 }
 
 func TestReplaces(t *testing.T) {
@@ -58,46 +56,35 @@ func TestReplaces(t *testing.T) {
 		}))
 }
 
-func TestPadding(t *testing.T) {
-	tests := []struct {
-		want, give, pad string
-		len             int
-		pos             uint8
-	}{
-		{"ab000", "ab", "0", 5, strutil.PosRight},
-		{"000ab", "ab", "0", 5, strutil.PosLeft},
-		{"ab012", "ab012", "0", 4, strutil.PosLeft},
-		{"ab   ", "ab", "", 5, strutil.PosRight},
-		{"   ab", "ab", "", 5, strutil.PosLeft},
-	}
-
-	for _, tt := range tests {
-		assert.Eq(t, tt.want, strutil.Padding(tt.give, tt.pad, tt.len, tt.pos))
-
-		if tt.pos == strutil.PosRight {
-			assert.Eq(t, tt.want, strutil.PadRight(tt.give, tt.pad, tt.len))
-		} else {
-			assert.Eq(t, tt.want, strutil.PadLeft(tt.give, tt.pad, tt.len))
-		}
-	}
-}
-
 func TestWrapTag(t *testing.T) {
+	assert.Eq(t, "", strutil.WrapTag("", "info"))
+	assert.Eq(t, "<info>abc</info>", strutil.WrapTag("abc", "info"))
 }
 
-func TestPrettyJSON(t *testing.T) {
-	tests := []interface{}{
-		map[string]int{"a": 1},
-		struct {
-			A int `json:"a"`
-		}{1},
-	}
-	want := `{
-    "a": 1
-}`
-	for _, sample := range tests {
-		got, err := strutil.PrettyJSON(sample)
-		assert.NoErr(t, err)
-		assert.Eq(t, want, got)
-	}
+func TestSubstrCount(t *testing.T) {
+	s := "I'm fine, thank you, and you"
+	substr := "you"
+	res, err := strutil.SubstrCount(s, substr)
+	assert.NoErr(t, err)
+	assert.Eq(t, 2, res)
+
+	res1, err := strutil.SubstrCount(s, substr, 18)
+	assert.NoErr(t, err)
+	assert.Eq(t, 1, res1)
+
+	res2, err := strutil.SubstrCount(s, substr, 17, 100)
+	assert.NoErr(t, err)
+	assert.Eq(t, 1, res2)
+
+	res, err = strutil.SubstrCount(s, substr, 16)
+	assert.NoErr(t, err)
+	assert.Eq(t, 2, res)
+
+	res, err = strutil.SubstrCount(s, substr)
+	assert.NoErr(t, err)
+	assert.Eq(t, 2, res)
+
+	res, err = strutil.SubstrCount(s, substr, 1, 2, 3)
+	assert.Err(t, err)
+	assert.Eq(t, 0, res)
 }

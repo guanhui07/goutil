@@ -21,6 +21,19 @@ func TestValueOf(t *testing.T) {
 	assert.Eq(t, uint64(23), rv.Uint())
 	assert.Eq(t, int64(23), rv.Int())
 	assert.False(t, rv.HasChild())
+	assert.Eq(t, reflects.Uint, rv.Type().BaseKind())
+	assert.Eq(t, reflects.Uint, rv.Indirect().BaseKind())
+
+	rv = reflects.ValueOf(reflect.ValueOf("abc"))
+	assert.Eq(t, "abc", rv.String())
+	assert.Eq(t, "abc", rv.Elem().String())
+	assert.Eq(t, reflect.String, rv.Type().BaseKind())
+
+	// pointer
+	s := new(string)
+	*s = "abc"
+	rv = reflects.ValueOf(s)
+	assert.Eq(t, reflect.String, rv.Elem().Kind())
 
 	rv = reflects.ValueOf("abc")
 	assert.Panics(t, func() {
@@ -38,7 +51,7 @@ func TestValue_Indirect(t *testing.T) {
 	}
 
 	rv := reflects.ValueOf(&user{Age: 23})
-	assert.Eq(t, reflects.BKind(reflect.Ptr), rv.BKind())
+	assert.Eq(t, reflect.Ptr, rv.BKind())
 	assert.False(t, rv.HasChild())
 
 	rv1 := reflects.Elem(rv.Value)
@@ -51,7 +64,7 @@ func TestValue_Indirect(t *testing.T) {
 
 	rv = rv.Indirect()
 	assert.True(t, rv.HasChild())
-	assert.Eq(t, reflects.BKind(reflect.Struct), rv.BKind())
+	assert.Eq(t, reflect.Struct, rv.BKind())
 
 	rv1 = reflects.Elem(reflect.ValueOf("abc"))
 	assert.Eq(t, reflect.String, rv1.Kind())

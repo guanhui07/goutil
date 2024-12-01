@@ -5,9 +5,14 @@ import (
 	"io"
 )
 
-// WriteWrapper struct
+// WriteWrapper warp io.Writer support more operate methods.
 type WriteWrapper struct {
 	Out io.Writer
+}
+
+// WrapW instance
+func WrapW(w io.Writer) *WriteWrapper {
+	return &WriteWrapper{Out: w}
 }
 
 // NewWriteWrapper instance
@@ -20,6 +25,11 @@ func (w *WriteWrapper) Write(p []byte) (n int, err error) {
 	return w.Out.Write(p)
 }
 
+// Writef data to output
+func (w *WriteWrapper) Writef(tpl string, vs ...any) (n int, err error) {
+	return fmt.Fprintf(w.Out, tpl, vs...)
+}
+
 // WriteByte data
 func (w *WriteWrapper) WriteByte(c byte) error {
 	_, err := w.Out.Write([]byte{c})
@@ -28,6 +38,9 @@ func (w *WriteWrapper) WriteByte(c byte) error {
 
 // WriteString data
 func (w *WriteWrapper) WriteString(s string) (n int, err error) {
+	if sw, ok := w.Out.(io.StringWriter); ok {
+		return sw.WriteString(s)
+	}
 	return w.Out.Write([]byte(s))
 }
 
